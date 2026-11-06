@@ -75,6 +75,40 @@ end
 R.OnClientEvent:Connect(function(event,...)
  if event=="Damage" then showDamage(...) else notify(event) end
 end)
+-- A barra acompanha a vida replicada; os números de dano continuam independentes.
+task.spawn(function()
+ local zone=workspace:WaitForChild("MUBloxTrainingGround")
+ local watched={}
+ local function watchEnemy(enemy)
+  if enemy.Name~="GolemDePedra" or watched[enemy] then return end
+  watched[enemy]=true
+  task.spawn(function()
+   local body=enemy:WaitForChild("Corpo",5)
+   local display=body and body:WaitForChild("HealthDisplay",5)
+   local track=display and display:WaitForChild("Track",5)
+   local fill=track and track:WaitForChild("Fill",5)
+   if not fill or not enemy.Parent then watched[enemy]=nil; return end
+   local tween
+   local function updateBar()
+    local ratio=math.clamp((enemy:GetAttribute("Health") or 120)/math.max(enemy:GetAttribute("MaxHealth") or 120,1),0,1)
+    if tween then tween:Cancel() end
+    local color=ratio>.5 and Color3.fromRGB(70,200,90) or ratio>.25 and Color3.fromRGB(240,185,60) or Color3.fromRGB(225,65,65)
+    tween=TweenService:Create(fill,TweenInfo.new(.18),{Size=UDim2.fromScale(ratio,1),BackgroundColor3=color})
+    tween:Play()
+   end
+   local healthConnection=enemy:GetAttributeChangedSignal("Health"):Connect(updateBar)
+   local maxConnection=enemy:GetAttributeChangedSignal("MaxHealth"):Connect(updateBar)
+   enemy.Destroying:Once(function()
+    healthConnection:Disconnect(); maxConnection:Disconnect()
+    if tween then tween:Cancel() end
+    watched[enemy]=nil
+   end)
+   updateBar()
+  end)
+ end
+ zone.ChildAdded:Connect(watchEnemy)
+ for _, enemy in zone:GetChildren() do watchEnemy(enemy) end
+end)
 skill.Activated:Connect(function()
  if player:GetAttribute("Class")=="Guerreiro" then R:FireServer("Spin") end
 end)
@@ -184,12 +218,16 @@ Players.PlayerRemoving:Connect(function(p) states[p]=nil end)
 local function setupWings(armor)
  local result={}; if not armor then return result end
  for _, p in armor:GetChildren() do
-  if not p:IsA("BasePart") or not string.match(p.Name,"^Wings") then continue end
-  local weld=p:FindFirstChildOfClass("WeldConstraint"); if not weld or not weld.Part0 then continue end
-  local rest=weld.Part0.CFrame:ToObjectSpace(p.CFrame)
-  local joint=Instance.new("Motor6D"); joint.Part0=weld.Part0; joint.Part1=p; joint.C0=rest
-  weld.Enabled=false; joint.Parent=p
-  table.insert(result,{joint=joint,rest=rest,side=rest.Position.X<0 and -1 or 1})
+  if not p:IsA("BasePart") or (not string.match(p.Name,"^Wings") and p.Name~="WingPivot") then continue end
+  local joint=p:FindFirstChild("WingVisualJoint")
+  local rest=joint and joint:GetAttribute("Rest")
+  if not joint then
+   local weld=p:FindFirstChildOfClass("WeldConstraint"); if not weld or not weld.Part0 then continue end
+   rest=weld.Part0.CFrame:ToObjectSpace(p.CFrame)
+   joint=Instance.new("Motor6D"); joint.Name="WingVisualJoint"; joint.Part0=weld.Part0; joint.Part1=p; joint.C0=rest
+   joint:SetAttribute("Rest",rest); weld.Enabled=false; joint.Parent=p
+  end
+  table.insert(result,{joint=joint,rest=rest,side=p:GetAttribute("WingSide") or (rest.Position.X<0 and -1 or 1),style=p:GetAttribute("WingStyle")})
  end; return result
 end
 local function setupTrail(tool)
@@ -209,7 +247,9 @@ Run.PreSimulation:Connect(function(dt)
    state.nextScan=now+.15
    for _, j in c:GetDescendants() do if (j:IsA("Motor6D") or j:IsA("AnimationConstraint")) and jointsWanted[j.Name] and not state.joints[j] then state.joints[j] = j:IsA("AnimationConstraint") and j.Attachment0.CFrame or j.C0 end end
    local armor=c:FindFirstChild("MUBloxArmor")
-   if armor~=state.armor then state.armor=armor; state.wings=setupWings(armor) end
+   if armor~=state.armor or (armor and #state.wings<(armor:GetAttribute("WingCount") or 0)) then
+    state.armor=armor; state.wings=setupWings(armor)
+   end
    local tool=c:FindFirstChild("MUBloxSword")
    if tool~=state.tool then state.tool=tool; state.trail=setupTrail(tool) end
   end
@@ -229,9 +269,15 @@ Run.PreSimulation:Connect(function(dt)
   local custom=flying or attacking
   if state.trail then state.trail.Enabled=attacking end
   for _, wing in state.wings do if wing.joint.Parent then
-   local flap=flying and math.sin(now*3.2-math.abs(wing.rest.Position.X)*.14)*math.rad(19) or 0
-   local pivot=CFrame.new(wing.side*.4,.35,.85)
-   wing.joint.C0=pivot*CFrame.Angles(0,wing.side*flap,0)*pivot:Inverse()*wing.rest
+   if wing.style then
+    local rate=wing.style=="Elfa" and 4.5 or 2.8
+    local flap=flying and math.sin(now*rate)*math.rad(19) or 0
+    wing.joint.C0=wing.rest*CFrame.Angles(0,wing.side*flap,0)
+   else
+    local flap=flying and math.sin(now*3.2-math.abs(wing.rest.Position.X)*.14)*math.rad(19) or 0
+    local pivot=CFrame.new(wing.side*.4,.35,.85)
+    wing.joint.C0=pivot*CFrame.Angles(0,wing.side*flap,0)*pivot:Inverse()*wing.rest
+   end
   end end
   if custom and not state.custom then
    state.animate=c:FindFirstChild("Animate"); if state.animate then state.disabled=state.animate.Disabled; state.animate.Disabled=true end

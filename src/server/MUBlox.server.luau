@@ -123,11 +123,72 @@ local function refreshEquipment(player)
   end
  end
  if player:GetAttribute("EquippedWings") and torso then
-  for _, side in {-1,1} do for i=1,7 do
-   local offset=CFrame.new(side*(.65+i*.39),.1+i*.25,1.05+i*.04)*CFrame.Angles(0,0,math.rad(-side*(12+i*6)))
-   piece("WingsFeather",torso,Vector3.new(.57,2.3+i*.17,.24),offset,Color3.fromRGB(225,230,245))
-   local glow=piece("WingsGlow",torso,Vector3.new(.1,(2.3+i*.17)*.82,.09),offset*CFrame.new(0,0,.15),Color3.fromRGB(160,215,255)); glow.Material=Enum.Material.Neon
-  end end
+  local className=player:GetAttribute("Class")
+  armor:SetAttribute("WingCount",className=="Mago" and 28 or 2)
+  if className=="Mago" then
+   -- Mantém a asa de penas e sua batida já aprovada.
+   for _, side in {-1,1} do for i=1,7 do
+    local offset=CFrame.new(side*(.65+i*.39),.1+i*.25,1.05+i*.04)*CFrame.Angles(0,0,math.rad(-side*(12+i*6)))
+    piece("WingsFeather",torso,Vector3.new(.57,2.3+i*.17,.24),offset,Color3.fromRGB(225,230,245))
+    local glow=piece("WingsGlow",torso,Vector3.new(.1,(2.3+i*.17)*.82,.09),offset*CFrame.new(0,0,.15),Color3.fromRGB(160,215,255)); glow.Material=Enum.Material.Neon
+   end end
+  else
+   -- Membranas e nervuras compartilham um pivô para não se separarem.
+   for _, side in {-1,1} do
+    local pivot=piece("WingPivot",torso,Vector3.new(.1,.1,.1),CFrame.new(side*.45,.45,torso.Size.Z*.5+.35))
+    pivot.Transparency=1
+    pivot:SetAttribute("WingSide",side)
+    pivot:SetAttribute("WingStyle",className)
+    local function shape(name,size,cf,color,transparency,kind)
+     local p=Instance.new(kind or "Part"); p.Name=name; p.Size=size; p.CFrame=pivot.CFrame*cf
+     p.Color=color; p.Transparency=transparency or 0; p.Material=Enum.Material.SmoothPlastic
+     p.Massless=true; p.CanCollide=false; p.CanTouch=false; p.CanQuery=false; p.Parent=armor
+     local w=Instance.new("WeldConstraint"); w.Part0=pivot; w.Part1=p; w.Parent=p
+     return p
+    end
+    local function rod(a,b,color,width)
+     return shape("WingVein",Vector3.new(width,width,(b-a).Magnitude),CFrame.lookAt((a+b)/2,b),color)
+    end
+    if className=="Guerreiro" then
+     local red=Color3.fromRGB(100,27,38)
+     local edge=Color3.fromRGB(45,26,35)
+     local origin=Vector3.new(0,0,0)
+     local tips={Vector3.new(side*.9,2,0),Vector3.new(side*2.6,1.5,0),Vector3.new(side*3.4,-.25,0),Vector3.new(side*1.7,-1.1,0),Vector3.new(side*.5,-1.5,0)}
+     local function triangle(a,b,c)
+      local ab,ac,bc=b-a,c-a,c-b
+      if ab:Dot(ab)>ac:Dot(ac) and ab:Dot(ab)>bc:Dot(bc) then c,a=a,c
+      elseif ac:Dot(ac)>bc:Dot(bc) then a,b=b,a end
+      ab,ac,bc=b-a,c-a,c-b
+      local right=ac:Cross(ab).Unit
+      local up=bc:Cross(right).Unit
+      local back=bc.Unit
+      local height=math.abs(ab:Dot(up))
+      shape("BatMembrane",Vector3.new(.09,height,math.abs(ab:Dot(back))),CFrame.fromMatrix((a+b)/2,right,up,back),red,.08,"WedgePart")
+      shape("BatMembrane",Vector3.new(.09,height,math.abs(ac:Dot(back))),CFrame.fromMatrix((a+c)/2,-right,up,-back),red,.08,"WedgePart")
+     end
+     for i=1,#tips-1 do
+      -- Borda recortada entre os dedos da asa de morcego.
+      local notch=(tips[i]+tips[i+1])*.34
+      triangle(origin,tips[i],notch)
+      triangle(origin,notch,tips[i+1])
+      rod(tips[i],notch,edge,.1); rod(notch,tips[i+1],edge,.1)
+     end
+     for _, tip in tips do rod(origin,tip,edge,.16) end
+    else
+     local upper=CFrame.new(side*1.25,1,0)*CFrame.Angles(0,0,math.rad(-side*30))
+     local lower=CFrame.new(side*.85,-.8,.03)*CFrame.Angles(0,0,math.rad(side*25))
+     for _, data in {{upper,Vector3.new(2.1,3.1,.12),Color3.fromRGB(125,205,240)}, {lower,Vector3.new(1.6,2.1,.12),Color3.fromRGB(200,150,235)}} do
+      local lobe=shape("ButterflyMembrane",data[2],data[1],data[3],.4)
+      lobe.Shape=Enum.PartType.Ball
+      local inset=shape("ButterflyPattern",data[2]*Vector3.new(.7,.7,.6),data[1]*CFrame.new(0,0,.08),Color3.fromRGB(205,245,225),.55)
+      inset.Shape=Enum.PartType.Ball
+     end
+     for _, tip in {Vector3.new(side*1.5,2,0),Vector3.new(side*2,1,0),Vector3.new(side*1.5,-1,0),Vector3.new(side*.7,-1.7,0)} do
+      rod(Vector3.zero,tip,Color3.fromRGB(185,225,210),.045).Transparency=.25
+     end
+    end
+   end
+  end
  end
  local backpack=player:FindFirstChildOfClass("Backpack"); if not backpack then return end
  local tool=c:FindFirstChild("MUBloxSword") or backpack:FindFirstChild("MUBloxSword")
@@ -166,20 +227,40 @@ if not zone:FindFirstChild("Campo") then
  part(zone,"Arena",Vector3.new(55,.4,45),CFrame.new(0,2.2,-235),stone,Enum.Material.Cobblestone)
  for _, x in {-30,30} do for _, z in {-215,-255} do part(zone,"Pilar",Vector3.new(5,12,5),CFrame.new(x,8,z),stone) end end
 end
-local mob,health,label
+local mob,health,mobAI
+local arenaCenter=Vector3.new(0,7.4,-235)
+local patrolPoints={Vector3.new(-16,7.4,-247),Vector3.new(16,7.4,-247),Vector3.new(16,7.4,-223),Vector3.new(-16,7.4,-223)}
 local function spawnMob()
  mob=model("GolemDePedra",zone); health=120
- local function body(name,size,offset,color) return part(mob,name,size,CFrame.new(Vector3.new(0,2.4,-235)+offset),color or stone) end
- local torso=body("Corpo",Vector3.new(5,5,3),Vector3.new(0,5,0)); mob.PrimaryPart=torso
- body("Cabeca",Vector3.new(3,2.5,2.8),Vector3.new(0,8.5,0))
- for _, s in {-1,1} do
-  body("Braco",Vector3.new(2,4.5,2.5),Vector3.new(s*3.5,5,0))
-  body("Perna",Vector3.new(2,3,2.5),Vector3.new(s*1.4,1.5,0))
-  body("Olho",Vector3.new(.5,.4,.15),Vector3.new(s*.65,8.7,1.45),gold).Material=Enum.Material.Neon
+ mob:SetAttribute("Health",health); mob:SetAttribute("MaxHealth",120)
+ local torso=part(mob,"Corpo",Vector3.new(5,5,3),CFrame.new(arenaCenter),stone)
+ mob.PrimaryPart=torso
+ local joints={}
+ local function body(name,size,offset,color,pivot)
+  local p=part(mob,name,size,torso.CFrame*CFrame.new(offset),color or stone)
+  p.Anchored=false; p.Massless=true; p.CanCollide=false
+  local joint=Instance.new("Motor6D"); joint.Name=name.."Joint"; joint.Part0=torso; joint.Part1=p
+  joint.C0=CFrame.new(pivot or offset); joint.C1=CFrame.new((pivot or offset)-offset); joint.Parent=torso
+  joints[name]={joint=joint,rest=joint.C0}
+  return p
  end
- local gui=Instance.new("BillboardGui"); gui.Size=UDim2.fromOffset(220,55); gui.StudsOffset=Vector3.new(0,6,0); gui.MaxDistance=100; gui.Parent=torso
- label=Instance.new("TextLabel"); label.Size=UDim2.fromScale(1,1); label.BackgroundTransparency=1; label.TextColor3=gold; label.TextStrokeTransparency=.3; label.TextSize=16; label.Parent=gui
- label.Text="GOLEM DE PEDRA\n120 / 120 · 50 XP"
+ body("Cabeca",Vector3.new(3,2.5,2.8),Vector3.new(0,3.5,0))
+ for _, side in {-1,1} do
+  local suffix=side<0 and "Left" or "Right"
+  body("Arm"..suffix,Vector3.new(2,4.5,2.5),Vector3.new(side*3.5,0,0),nil,Vector3.new(side*3,2,0))
+  body("Leg"..suffix,Vector3.new(2,3,2.5),Vector3.new(side*1.4,-3.5,0),nil,Vector3.new(side*1.4,-2,0))
+  body("Eye"..suffix,Vector3.new(.5,.4,.15),Vector3.new(side*.65,3.7,-1.45),gold).Material=Enum.Material.Neon
+ end
+ local gui=Instance.new("BillboardGui"); gui.Name="HealthDisplay"; gui.Size=UDim2.fromOffset(180,48)
+ gui.StudsOffset=Vector3.new(0,6,0); gui.MaxDistance=100; gui.Parent=torso
+ local title=Instance.new("TextLabel"); title.Size=UDim2.new(1,0,0,26); title.BackgroundTransparency=1
+ title.Text="GOLEM DE PEDRA"; title.TextColor3=gold; title.TextStrokeTransparency=.3; title.TextSize=14; title.Parent=gui
+ local track=Instance.new("Frame"); track.Name="Track"; track.Size=UDim2.new(1,-12,0,12); track.Position=UDim2.fromOffset(6,29)
+ track.BackgroundColor3=Color3.fromRGB(35,24,25); track.BorderSizePixel=0; track.ClipsDescendants=true; track.Parent=gui
+ local fill=Instance.new("Frame"); fill.Name="Fill"; fill.Size=UDim2.fromScale(1,1); fill.BorderSizePixel=0
+ fill.BackgroundColor3=Color3.fromRGB(70,200,90); fill.Parent=track
+ local border=Instance.new("UIStroke"); border.Color=gold; border.Thickness=1; border.Parent=track
+ mobAI={position=arenaCenter,forward=Vector3.new(0,0,-1),goal=1,joints=joints,phase=0,nextAttack=0}
 end
 spawnMob()
 local cooldowns={}; local requests={}
@@ -229,7 +310,7 @@ R.OnServerEvent:Connect(function(player,action,value)
  if not hitMob then return end
  local damage=math.min(health,spin and 45 or 15)
  local hitPosition=hitMob.PrimaryPart.Position
- health-=damage; label.Text="GOLEM DE PEDRA\n"..health.." / 120 · 50 XP"
+ health-=damage; hitMob:SetAttribute("Health",health)
  R:FireAllClients("Damage",hitPosition,damage,spin)
  if health==0 then
   mob:Destroy(); mob=nil
@@ -247,21 +328,84 @@ task.spawn(function() while true do task.wait(1)
   if h and h.Health>0 then p:SetAttribute("Mana",math.min(p:GetAttribute("MaxMana") or 0,(p:GetAttribute("Mana") or 0)+5)) end
  end
 end end)
-task.spawn(function() while true do task.wait(1.8)
- if not mob then continue end
- local enemy=mob; local enemyBody=enemy.PrimaryPart; local target; local distance=11
+-- Patrulha e perseguição autoritativas, com alcance limitado à arena.
+local function clampToArena(position)
+ return Vector3.new(math.clamp(position.X,-22,22),arenaCenter.Y,math.clamp(position.Z,-252,-218))
+end
+local function findEnemyTarget(enemy,position)
+ local selected=nil
+ local distance=32
  for _, p in Players:GetPlayers() do
-  local c=p.Character; local h=c and c:FindFirstChildOfClass("Humanoid"); local r=c and c:FindFirstChild("HumanoidRootPart")
-  if h and r and h.Health>0 and p:GetAttribute("Class") then
-   local d=(r.Position-enemyBody.Position).Magnitude
-   if d<distance then target={c,h,r}; distance=d end
+  local c=p.Character; local h=c and c:FindFirstChildOfClass("Humanoid"); local root=c and c:FindFirstChild("HumanoidRootPart")
+  if h and root and h.Health>0 and p:GetAttribute("Class") then
+   local homeDistance=(root.Position-arenaCenter).Magnitude
+   local d=(root.Position-position).Magnitude
+   if homeDistance<=42 and d<distance and sight(position,root.Position,enemy,c) then
+    selected={character=c,humanoid=h,root=root}; distance=d
+   end
   end
  end
- if target then
-  enemyBody.Color=Color3.fromRGB(210,90,55); task.wait(.45)
-  if enemy.Parent then
-   enemyBody.Color=stone
-   if target[3].Parent and target[2].Health>0 and (target[3].Position-enemyBody.Position).Magnitude<12 and sight(enemyBody.Position,target[3].Position,enemy,target[1]) then target[2]:TakeDamage(12) end
+ return selected,distance
+end
+local elapsedAI=0
+game:GetService("RunService").Heartbeat:Connect(function(dt)
+ elapsedAI+=dt
+ if elapsedAI<.05 then return end
+ local step=math.min(elapsedAI,.1); elapsedAI=0
+ if not mob or not mob.Parent or health<=0 then return end
+ local ai=mobAI
+ local torso=mob.PrimaryPart
+ local now=workspace:GetServerTimeNow()
+ local target,distance=findEnemyTarget(mob,ai.position)
+ local moving=false
+ local armAngle=0
+ if ai.attack then
+  local elapsed=now-ai.attack.started
+  if elapsed<.45 then
+   armAngle=math.rad(140)*math.clamp(elapsed/.45,0,1)
+  else
+   armAngle=math.rad(140)*math.max(0,1-(elapsed-.45)/.4)
+  end
+  if elapsed>=.45 and not ai.attack.struck then
+   ai.attack.struck=true
+   local victim=ai.attack.target
+   if victim.root.Parent and victim.humanoid.Health>0
+    and (victim.root.Position-ai.position).Magnitude<=11
+    and sight(ai.position,victim.root.Position,mob,victim.character) then
+    victim.humanoid:TakeDamage(12)
+   end
+  end
+  if elapsed>=.9 then ai.attack=nil end
+ elseif target and distance<=9 then
+  local facing=Vector3.new(target.root.Position.X-ai.position.X,0,target.root.Position.Z-ai.position.Z)
+  if facing.Magnitude>.01 then ai.forward=facing.Unit end
+  if now>=ai.nextAttack then
+   ai.attack={started=now,target=target,struck=false}; ai.nextAttack=now+1.8
+  end
+ else
+  local destination=target and clampToArena(target.root.Position) or patrolPoints[ai.goal]
+  local delta=destination-ai.position
+  if delta.Magnitude<.5 then
+   if not target then ai.goal=ai.goal%#patrolPoints+1 end
+  else
+   local speed=target and 8 or 4
+   local travel=math.min(delta.Magnitude,speed*step)
+   ai.forward=delta.Unit
+   ai.position=clampToArena(ai.position+delta.Unit*travel)
+   ai.phase+=travel*1.5
+   moving=true
   end
  end
-end end)
+ local bob=moving and math.abs(math.sin(ai.phase))*.12 or 0
+ torso.CFrame=CFrame.lookAt(ai.position+Vector3.new(0,bob,0),ai.position+Vector3.new(0,bob,0)+ai.forward)
+ torso.Color=ai.attack and Color3.fromRGB(185,85,55) or stone
+ local walk=moving and math.sin(ai.phase)*math.rad(23) or 0
+ for name,entry in pairs(ai.joints) do
+  local angle=0
+  if name=="LegLeft" then angle=walk
+  elseif name=="LegRight" then angle=-walk
+  elseif name=="ArmLeft" then angle=ai.attack and armAngle or -walk*.6
+  elseif name=="ArmRight" then angle=ai.attack and armAngle or walk*.6 end
+  entry.joint.C0=entry.rest*CFrame.Angles(angle,0,0)
+ end
+end)

@@ -19,7 +19,10 @@ local function scenario(options)
  function player:SetAttribute(key,value) attrs[key]=value end
  local mob={PrimaryPart={Position=position(options.distance or 5)}}
  if options.empty then mob=nil end
- if mob then function mob:Destroy() self.destroyed=true end end
+ if mob then
+  function mob:Destroy() self.destroyed=true end
+  function mob:SetAttribute(name,value) self[name]=value end
+ end
  local initialMob=mob
  local health=options.health or 120
  local label={Text=""}
@@ -74,7 +77,7 @@ check("empty spin consumes mana and animates",function()
 end)
 check("spin hits nearby golem without target",function()
  local s=scenario();s.cast("Spin")
- local r=s.snapshot();assert(r.health==75 and r.mana==40)
+ local r=s.snapshot();assert(r.health==75 and r.mana==40 and r.mob.Health==75)
  assert(#r.hits==1 and r.hits[1].damage==45 and r.hits[1].spin)
 end)
 check("spin checks range and line of sight",function()

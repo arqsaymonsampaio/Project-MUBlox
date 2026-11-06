@@ -30,21 +30,26 @@ Não execute os instaladores antigos junto com esta versão. Ao usar um lugar ex
 - O dano efetivo aparece sobre o monstro, sobe e desaparece, inclusive no golpe final.
 - A câmera padrão também usa o botão direito ao arrastar.
 
-O golem fica além do portão norte, no sentido oposto ao ponto de nascimento. Revida parado, concede 50 XP ao jogador que dá o último golpe e reaparece após cinco segundos. Cada 100 XP sobe um nível. Os níveis ainda não concedem novos atributos.
+O golem fica além do portão norte, no sentido oposto ao ponto de nascimento. Patrulha a arena, detecta jogadores vivos com classe escolhida a até 32 studs e persegue automaticamente sem precisar receber dano. Seu deslocamento fica limitado à arena; alvos além de 42 studs do centro são ignorados. Levanta os braços antes de golpear, permitindo sair do alcance. Concede 50 XP ao jogador que dá o último golpe e reaparece após cinco segundos. Cada 100 XP sobe um nível. Os níveis ainda não concedem novos atributos.
 
 ## O que está incluído
 
 - Cidade medieval, fonte, casas cenográficas, muralhas e campo de treino.
 - Guerreiro, Mago e Elfa com vida e mana diferentes.
-- HUD, inventário lateral, peças cosméticas, espada e asas.
+- HUD, inventário lateral com atalho I, peças cosméticas e espada.
+- Guerreiro: asas de morcego com membranas e nervuras escuras. Mago: asas de anjo com penas claras. Elfa: asas de borboleta com lóbulos delicados e semitransparentes. Os modelos são geométricos provisórios.
+- Barra de HP do golem com redução suave e mudança de cor, mantendo os números flutuantes de dano.
+- Movimento e golpes articulados do golem controlados pelo servidor. A navegação atual atende ao piso plano e aberto desta arena; não é um sistema de navegação para obstáculos adicionados posteriormente.
 - Controlador com suporte a Motor6D e AnimationConstraint, incluindo postura e ataque procedural.
-- Batida original das asas preservada; a revisão posterior de articulação das asas não está aplicada.
+- O Mago mantém as asas de penas anteriores; as membranas do Guerreiro e da Elfa usam uma estrutura por lado para permanecerem unidas durante a batida.
 - Com asas, o tronco fica quase ereto parado e inclina até 20° ao se deslocar, com transição suave baseada na velocidade horizontal.
 - Dano, alcance, mana e recarga validados pelo servidor.
 
 ## Limitações e validação
 
-Sete cenários de combate passaram usando o callback real do servidor com dependências simuladas: alvo do ataque básico, alcance/obstáculos, Giro sem alvo, acerto em área, recarga, restrições de classe/mana/arma/vida e recompensa no golpe final. Rode `python tests/run_combat.py /caminho/para/luau`. Sons, números flutuantes e interação com o painel ainda precisam de teste no Studio.
+Sete cenários de combate passaram usando o callback real do servidor com dependências simuladas: alvo do ataque básico, alcance/obstáculos, Giro sem alvo, acerto em área, recarga, restrições de classe/mana/arma/vida e recompensa no golpe final. Rode `python tests/run_combat.py /caminho/para/luau`. Seis cenários adicionais da IA passaram: patrulha limitada, perseguição por proximidade, rejeição de alvos inválidos/obstruídos/distantes, preparação e dano único do golpe, esquiva e cancelamento ao morrer. Execute `python tests/run_enemy.py /caminho/para/luau`. Os testes usam serviços simulados; não verificam a física ou a renderização do Studio.
+
+Sons, barra de HP, novos modelos de asas, animação/navegação do golem e interação com o painel ainda precisam de teste no Studio.
 
 A sintaxe dos scripts foi verificada com o compilador oficial Luau. O build foi gerado com Rojo 7.7.1 e os objetos/fontes resultantes foram conferidos. Isso não substitui um teste no Roblox Studio.
 
