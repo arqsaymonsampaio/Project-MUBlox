@@ -9,7 +9,7 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 source = (root / 'src/server/MUBlox.server.luau').read_text()
-start = source.index('R.OnServerEvent:Connect(function(player,action,value)')
+start = source.index('local combatProfiles=')
 end = source.index('Players.PlayerRemoving:Connect', start)
 harness = (root / 'tests/combat-harness.luau').read_text()
 script = harness.replace('-- CALLBACK_PLACEHOLDER', source[start:end])

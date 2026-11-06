@@ -23,20 +23,29 @@ Não execute os instaladores antigos junto com esta versão. Ao usar um lugar ex
 - **I** ou botão à direita: abrir inventário (fora de campos de texto/chat).
 - Clique numa peça equipada para retirar; clique na mochila para equipar.
 - **W** na mochila: asas cosméticas com flutuação baixa, sem voo livre.
-- Clique esquerdo diretamente no golem, de perto: ataque básico.
-- Clique direito no mundo (ou clique no primeiro slot de skill): Golpe Giratório do Guerreiro, mesmo sem alvo, com 20 mana e 3 segundos de recarga. Acerta o golem dentro de 14 studs e sem obstáculos.
+- Clique esquerdo diretamente em um golem: ataque básico da classe, exigindo arma equipada e alcance.
+- Clique direito no mundo (ou no primeiro slot do HUD): skill da classe. Pode ser lançada sem alvo, consumindo mana e iniciando recarga.
+
+| Classe / arma | Ataque básico | Skill | Mana / recarga |
+|---|---|---|---|
+| Guerreiro / espada | 15 de dano, 10 studs | Giro: 45 de dano nos alvos em 14 studs | 20 / 3 s |
+| Mago / staff | Orbe: 18 de dano, 60 studs | Espíritos: 35 de dano por alvo visível na tela, até 65 studs | 30 / 4 s |
+| Elfa / arco | Flecha: 16 de dano, 55 studs | Multi-Shot: 32 de dano por alvo no cone frontal de 80°, até 55 studs | 25 / 3 s |
+
+Os espíritos usam candidatos projetados na tela pela câmera; o servidor valida registro do inimigo, alcance, obstáculos e duplicatas. O cone da Elfa segue a direção do corpo, não a câmera. Cada alvo recebe dano uma vez por lançamento. Os projéteis rastreiam o alvo clicado e aplicam dano ao concluir o percurso, se ele continuar elegível. Os valores são iniciais para balanceamento.
+
 - Com inventário aberto, cliques fora do painel continuam controlando o combate; os cliques sobre as peças apenas equipam/retiram.
 - Ao flutuar, o som padrão de passos é silenciado e volta ao retirar as asas.
 - O dano efetivo aparece sobre o monstro, sobe e desaparece, inclusive no golpe final.
 - A câmera padrão também usa o botão direito ao arrastar.
 
-O golem fica além do portão norte, no sentido oposto ao ponto de nascimento. Patrulha a arena, detecta jogadores vivos com classe escolhida a até 32 studs e persegue automaticamente sem precisar receber dano. Seu deslocamento fica limitado à arena; alvos além de 42 studs do centro são ignorados. Levanta os braços antes de golpear, permitindo sair do alcance. Concede 50 XP ao jogador que dá o último golpe e reaparece após cinco segundos. Cada 100 XP sobe um nível. Os níveis ainda não concedem novos atributos.
+A arena além do portão norte possui três golems, com vida, patrulha e reaparecimento independentes. Cada golem patrulha a arena, detecta jogadores vivos com classe escolhida a até 32 studs e persegue automaticamente sem precisar receber dano. Seu deslocamento fica limitado à arena; alvos além de 42 studs do centro são ignorados. Levanta os braços antes de golpear, permitindo sair do alcance. Concede 50 XP ao jogador que dá o último golpe e reaparece após cinco segundos. Cada 100 XP sobe um nível. Os níveis ainda não concedem novos atributos.
 
 ## O que está incluído
 
 - Cidade medieval, fonte, casas cenográficas, muralhas e campo de treino.
 - Guerreiro, Mago e Elfa com vida e mana diferentes.
-- HUD, inventário lateral com atalho I, peças cosméticas e espada.
+- HUD, inventário lateral com atalho I, peças cosméticas e arma própria de cada classe. O slot interno `Sword` foi preservado por compatibilidade, mas exibe Espada, Staff ou Arco conforme a classe.
 - Guerreiro: asas de morcego com membranas e nervuras escuras. Mago: asas de anjo com penas claras. Elfa: asas de borboleta com lóbulos delicados e semitransparentes. Os modelos são geométricos provisórios.
 - Barra de HP do golem com redução suave e mudança de cor, mantendo os números flutuantes de dano.
 - Movimento e golpes articulados do golem controlados pelo servidor. A navegação atual atende ao piso plano e aberto desta arena; não é um sistema de navegação para obstáculos adicionados posteriormente.
@@ -47,15 +56,15 @@ O golem fica além do portão norte, no sentido oposto ao ponto de nascimento. P
 
 ## Limitações e validação
 
-Sete cenários de combate passaram usando o callback real do servidor com dependências simuladas: alvo do ataque básico, alcance/obstáculos, Giro sem alvo, acerto em área, recarga, restrições de classe/mana/arma/vida e recompensa no golpe final. Rode `python tests/run_combat.py /caminho/para/luau`. Seis cenários adicionais da IA passaram: patrulha limitada, perseguição por proximidade, rejeição de alvos inválidos/obstruídos/distantes, preparação e dano único do golpe, esquiva e cancelamento ao morrer. Execute `python tests/run_enemy.py /caminho/para/luau`. Os testes usam serviços simulados; não verificam a física ou a renderização do Studio.
+Onze cenários de combate passaram usando o bloco real do servidor com serviços simulados: seleção obrigatória para ataques básicos, alcance, obstáculos, projéteis, alvos visíveis sem duplicação, cone frontal, skills vazias, mana, recarga, armas, morte do lançador e múltiplas recompensas/respawns. Rode `python tests/run_combat.py /caminho/para/luau`. Sete cenários da IA verificam patrulha, perseguição, alvos inválidos, golpes, esquiva, morte e independência entre inimigos: `python tests/run_enemy.py /caminho/para/luau`. Os testes não verificam a física ou a renderização do Studio.
 
 Sons, barra de HP, novos modelos de asas, animação/navegação do golem e interação com o painel ainda precisam de teste no Studio.
 
 A sintaxe dos scripts foi verificada com o compilador oficial Luau. O build foi gerado com Rojo 7.7.1 e os objetos/fontes resultantes foram conferidos. Isso não substitui um teste no Roblox Studio.
 
-A postura inclinada com AnimationConstraint foi confirmada pelo usuário no Studio. A transição entre repouso e movimento e os movimentos da espada ainda precisam de confirmação visual. As armaduras são peças provisórias; acessórios do avatar podem se sobrepor. Só o Guerreiro possui skill; as demais classes usam o ataque básico provisório. Não há salvamento de progresso, PvP, economia, interiores de casas nem controle de combate para celular. A interface redimensiona, mas precisa de validação em dispositivos.
+A postura inclinada com AnimationConstraint foi confirmada pelo usuário no Studio. A transição entre repouso e movimento e os movimentos da espada ainda precisam de confirmação visual. As armaduras são peças provisórias; acessórios do avatar podem se sobrepor. Armas, espíritos, flechas e poses de conjuração/tiro são representações procedurais provisórias que precisam de revisão visual no Studio. Não há salvamento de progresso, PvP, economia, interiores de casas nem controle de combate para celular. A interface redimensiona, mas precisa de validação em dispositivos.
 
-Teste após conectar: escolher classe, vestir/retirar peças, abrir com I, equipar asas, conferir postura lateral, atacar e usar Giro, receber dano, ganhar XP e renascer.
+Teste após conectar: escolher classe, vestir/retirar peças, abrir com I, equipar asas, conferir postura lateral, testar as três classes em sessões separadas, usar as skills com vários inimigos (incluindo alvos fora da tela e atrás da Elfa), receber dano, ganhar XP e renascer.
 
 ## Arquivos
 

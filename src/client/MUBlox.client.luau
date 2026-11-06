@@ -72,8 +72,91 @@ local function showDamage(position,amount,spin)
   TextTransparency=1,TextStrokeTransparency=1}):Play()
  Debris:AddItem(marker,1)
 end
+local projectiles={}
+local function projectile(kind,origin,destination,target,duration,started)
+ local camera=workspace.CurrentCamera
+ if not camera or (camera.CFrame.Position-origin).Magnitude>170 then return end
+ local model=make("Model",{Name="MUBloxProjectile"},workspace)
+ local function effectPart(size,color,offset,shape)
+  local p=make("Part",{Size=size,Color=color,Material=Enum.Material.Neon,Anchored=true,
+   CanCollide=false,CanTouch=false,CanQuery=false,CFrame=CFrame.new(origin)*offset},model)
+  if shape then p.Shape=shape end
+  return {part=p,offset=offset}
+ end
+ local pieces={}
+ if kind=="Arrow" then
+  table.insert(pieces,effectPart(Vector3.new(.07,.07,1.8),Color3.fromRGB(235,205,110),CFrame.identity))
+  table.insert(pieces,effectPart(Vector3.new(.22,.22,.35),Color3.fromRGB(190,245,180),CFrame.new(0,0,-.95),Enum.PartType.Ball))
+ elseif kind=="Spirit" then
+  table.insert(pieces,effectPart(Vector3.new(.8,1,.7),Color3.fromRGB(170,245,225),CFrame.identity,Enum.PartType.Ball))
+  for _, side in {-1,1} do
+   table.insert(pieces,effectPart(Vector3.new(.13,.17,.1),Color3.fromRGB(35,45,85),CFrame.new(side*.18,.12,-.34),Enum.PartType.Ball))
+  end
+ else
+  table.insert(pieces,effectPart(Vector3.new(.7,.7,.7),Color3.fromRGB(165,100,255),CFrame.identity,Enum.PartType.Ball))
+ end
+ local head=pieces[1].part
+ local a=make("Attachment",{Position=Vector3.new(-.17,0,0)},head)
+ local b=make("Attachment",{Position=Vector3.new(.17,0,0)},head)
+ make("Trail",{Attachment0=a,Attachment1=b,Lifetime=.2,FaceCamera=true,LightEmission=1,
+  Color=ColorSequence.new(head.Color),Transparency=NumberSequence.new(.2,1)},head)
+ table.insert(projectiles,{model=model,pieces=pieces,kind=kind,origin=origin,destination=destination,
+  target=target,duration=duration,started=started})
+ Debris:AddItem(model,duration+1)
+end
+local function castEffect(kind,origin,forward,started)
+ if kind=="MultiShot" then
+  for _, angle in {-40,-20,0,20,40} do
+   local direction=CFrame.Angles(0,math.rad(angle),0):VectorToWorldSpace(forward)
+   projectile("Arrow",origin,origin+direction*55,nil,.55,started)
+  end
+ elseif kind=="Spirits" then
+  for i=1,3 do
+   local direction=CFrame.Angles(0,math.rad((i-2)*45),0):VectorToWorldSpace(forward)
+   projectile("Spirit",origin,origin+direction*7+Vector3.new(0,2,0),nil,.65,started)
+  end
+ end
+end
+Run.RenderStepped:Connect(function()
+ local now=workspace:GetServerTimeNow()
+ for i=#projectiles,1,-1 do
+  local shot=projectiles[i]
+  local t=math.clamp((now-shot.started)/shot.duration,0,1)
+  if t>=1 or not shot.model.Parent then
+   shot.model:Destroy(); table.remove(projectiles,i)
+  else
+   local target=shot.target
+   local destination=target and target.Parent and target.PrimaryPart and target.PrimaryPart.Position or shot.destination
+   local position=shot.origin:Lerp(destination,t)
+   if shot.kind=="Spirit" then position+=Vector3.new(math.sin(t*math.pi*4)*.6,math.sin(t*math.pi)*1.5,0) end
+   local direction=destination-position
+   local cf=direction.Magnitude>.01 and CFrame.lookAt(position,destination) or CFrame.new(position)
+   for _, piece in shot.pieces do piece.part.CFrame=cf*piece.offset end
+  end
+ end
+end)
+local function castSkill()
+ if not player:GetAttribute("Class") then return end
+ local visible={}
+ if player:GetAttribute("Class")=="Mago" then
+  local camera=workspace.CurrentCamera
+  local zone=workspace:FindFirstChild("MUBloxTrainingGround")
+  if camera and zone then
+   for _, enemy in zone:GetChildren() do
+    if enemy:IsA("Model") and enemy.Name=="GolemDePedra" and enemy.PrimaryPart then
+     local point,onScreen=camera:WorldToViewportPoint(enemy.PrimaryPart.Position)
+     if onScreen and point.Z>0 then table.insert(visible,enemy) end
+    end
+   end
+  end
+ end
+ R:FireServer("Skill",visible)
+end
 R.OnClientEvent:Connect(function(event,...)
- if event=="Damage" then showDamage(...) else notify(event) end
+ if event=="Damage" then showDamage(...)
+ elseif event=="Projectile" then projectile(...)
+ elseif event=="Cast" then castEffect(...)
+ else notify(event) end
 end)
 -- A barra acompanha a vida replicada; os números de dano continuam independentes.
 task.spawn(function()
@@ -109,9 +192,7 @@ task.spawn(function()
  zone.ChildAdded:Connect(watchEnemy)
  for _, enemy in zone:GetChildren() do watchEnemy(enemy) end
 end)
-skill.Activated:Connect(function()
- if player:GetAttribute("Class")=="Guerreiro" then R:FireServer("Spin") end
-end)
+skill.Activated:Connect(castSkill)
 -- Inventário: lateral direita; o centro permanece livre.
 local toggle=button(gui,"INVENTÁRIO · I",UDim2.fromOffset(165,36),UDim2.new(1,-181,0,65))
 local panel=make("Frame",{Name="EquipmentPanel",Size=UDim2.fromOffset(290,520),AnchorPoint=Vector2.new(1,0),Position=UDim2.new(1,-16,0,110),BackgroundColor3=Color3.fromRGB(19,20,22),Visible=false,Active=true},gui)
@@ -148,6 +229,8 @@ end
 local function refresh()
  local class=player:GetAttribute("Class"); toggle.Visible=class~=nil; chooser.Visible=class==nil
  if not class then panel.Visible=false end
+ names.Sword=class=="Mago" and "Staff" or class=="Elfa" and "Arco" or "Espada"
+ symbols.Sword=class=="Mago" and "C" or class=="Elfa" and "A" or "S"
  setMana(player:GetAttribute("Mana") or 0,player:GetAttribute("MaxMana") or 0)
  local xp=player:GetAttribute("Experience") or 0; xpFill.Size=UDim2.fromScale(math.clamp(xp/100,0,1),1)
  level.Text=string.format("NÍVEL %d · EXP %d/100",player:GetAttribute("Level") or 1,xp)
@@ -178,7 +261,7 @@ UIS.InputBegan:Connect(function(input,processed)
  end
  local action=input.UserInputType==Enum.UserInputType.MouseButton1 and "Basic" or input.UserInputType==Enum.UserInputType.MouseButton2 and "Spin" or nil
  if not action then return end
- if action=="Spin" then R:FireServer("Spin"); return end
+ if action=="Spin" then castSkill(); return end
  local target=mouse.Target
  while target and target~=workspace do
   if target:IsA("Model") and target.Name=="GolemDePedra" then R:FireServer(action,target); return end
@@ -231,7 +314,7 @@ local function setupWings(armor)
  end; return result
 end
 local function setupTrail(tool)
- local h=tool and tool:FindFirstChild("Handle"); if not h then return nil end
+ local h=tool and tool:FindFirstChild("Handle"); if not h or tool:GetAttribute("WeaponClass")~="Guerreiro" then return nil end
  local existing=h:FindFirstChild("BladeTrail"); if existing then return existing end
  local a=make("Attachment",{Position=Vector3.new(0,.9,0)},h)
  local b=make("Attachment",{Position=Vector3.new(0,4.1,0)},h)
@@ -250,7 +333,7 @@ Run.PreSimulation:Connect(function(dt)
    if armor~=state.armor or (armor and #state.wings<(armor:GetAttribute("WingCount") or 0)) then
     state.armor=armor; state.wings=setupWings(armor)
    end
-   local tool=c:FindFirstChild("MUBloxSword")
+   local tool=c:FindFirstChild("MUBloxWeapon")
    if tool~=state.tool then state.tool=tool; state.trail=setupTrail(tool) end
   end
   local flying=h.Health>0 and p:GetAttribute("EquippedWings")==true
@@ -264,8 +347,9 @@ Run.PreSimulation:Connect(function(dt)
   local moveBlend=state.flightMoveBlend or 0
   state.flightMoveBlend=flying and (moveBlend+(moveTarget-moveBlend)*(1-math.exp(-8*dt))) or 0
   local kind=p:GetAttribute("MUBloxAttackKind"); local time=p:GetAttribute("MUBloxAttackTime")
-  local elapsed=time and now-time or math.huge; local duration=kind=="Spin" and .65 or .32
+  local elapsed=time and now-time or math.huge; local duration=p:GetAttribute("MUBloxAttackDuration") or .32
   local attacking=h.Health>0 and elapsed>=0 and elapsed<duration
+  local attackClass=p:GetAttribute("Class")
   local custom=flying or attacking
   if state.trail then state.trail.Enabled=attacking end
   for _, wing in state.wings do if wing.joint.Parent then
@@ -339,6 +423,16 @@ elseif n == "RightElbow" then
 elseif n == "LeftElbow" then
  x = flying and -25 or 0
 end
+-- Poses de conjuração e tiro, sem o giro da espada nas classes à distância.
+if attacking and attackClass~="Guerreiro" then
+ if root then y=0
+ elseif n=="RightShoulder" or n=="Right Shoulder" then
+  x=(attackClass=="Mago" and -65 or -85)*pulse; z=attackClass=="Mago" and 10*pulse or 15*pulse
+ elseif n=="LeftShoulder" or n=="Left Shoulder" then
+  x=(attackClass=="Mago" and -35 or -70)*pulse; z=-15*pulse
+ elseif n=="LeftElbow" then x=-65*pulse
+ elseif n=="RightElbow" then x=-15*pulse end
+end
 local motion=CFrame.new(0,bob,0)*CFrame.Angles(math.rad(x),math.rad(y),math.rad(z))
    local goal=base*base.Rotation:Inverse()*motion*base.Rotation
    if j:IsA("AnimationConstraint") then
@@ -362,10 +456,13 @@ Run.RenderStepped:Connect(function()
   panelScale.Scale=math.min(1,math.max(.2,(v.Y-155)/520),math.max(.2,(v.X-32)/290))
  end
  local remaining=math.max(0,(player:GetAttribute("SpinReadyAt") or 0)-workspace:GetServerTimeNow())
- if player:GetAttribute("Class")~="Guerreiro" then skill.Text="1 · —"
- elseif not player:GetAttribute("EquippedSword") then skill.Text="GIRO\nSem arma"
- elseif remaining>0 then skill.Text=string.format("GIRO\n%.1fs",remaining)
- elseif (player:GetAttribute("Mana") or 0)<20 then skill.Text="GIRO\nSem mana"
- else skill.Text="GIRO\nDireito" end
+ local class=player:GetAttribute("Class")
+ local title=class=="Mago" and "ESPÍRITOS" or class=="Elfa" and "MULTI" or "GIRO"
+ local cost=player:GetAttribute("SkillMana") or 20
+ if not class then skill.Text="1 · —"
+ elseif not player:GetAttribute("EquippedSword") then skill.Text=title.."\nSem arma"
+ elseif remaining>0 then skill.Text=string.format("%s\n%.1fs",title,remaining)
+ elseif (player:GetAttribute("Mana") or 0)<cost then skill.Text=title.."\nSem mana"
+ else skill.Text=title.."\nDireito" end
 end)
 

@@ -191,16 +191,40 @@ local function refreshEquipment(player)
   end
  end
  local backpack=player:FindFirstChildOfClass("Backpack"); if not backpack then return end
- local tool=c:FindFirstChild("MUBloxSword") or backpack:FindFirstChild("MUBloxSword")
+ local tool=c:FindFirstChild("MUBloxWeapon") or backpack:FindFirstChild("MUBloxWeapon")
  if not player:GetAttribute("EquippedSword") then if tool then tool:Destroy() end; return end
- if tool then h:EquipTool(tool); return end
- tool=Instance.new("Tool"); tool.Name="MUBloxSword"; tool.CanBeDropped=false
- local handle=part(tool,"Handle",Vector3.new(.35,1.3,.35),CFrame.new(),wood,Enum.Material.Wood)
+ if tool then if tool.Parent~=c then h:EquipTool(tool) end; return end
+ local className=player:GetAttribute("Class")
+ tool=Instance.new("Tool"); tool.Name="MUBloxWeapon"; tool.CanBeDropped=false
+ tool:SetAttribute("WeaponClass",className)
+ tool.ToolTip=className=="Mago" and "Staff" or className=="Elfa" and "Arco" or "Espada"
+ local handle=part(tool,"Handle",Vector3.new(.3,1.3,.3),CFrame.new(),wood,Enum.Material.Wood)
  handle.Anchored=false; handle.Massless=true; handle.CanCollide=false; handle.CanTouch=false; handle.CanQuery=false
- for _, data in {{"Guarda",Vector3.new(1.7,.25,.5),.65,gold},{"Lamina",Vector3.new(.65,3.4,.18),2.4,Color3.fromRGB(195,210,225)}} do
-  local p=part(tool,data[1],data[2],handle.CFrame*CFrame.new(0,data[3],0),data[4],Enum.Material.Metal)
+ local function weaponPart(name,size,offset,color,material)
+  local p=part(tool,name,size,handle.CFrame*offset,color,material or Enum.Material.Metal)
   p.Anchored=false; p.Massless=true; p.CanCollide=false; p.CanTouch=false; p.CanQuery=false
   local w=Instance.new("WeldConstraint"); w.Part0=handle; w.Part1=p; w.Parent=p
+  return p
+ end
+ local tip=Instance.new("Attachment"); tip.Name="CastPoint"; tip.Parent=handle
+ if className=="Guerreiro" then
+  weaponPart("Guarda",Vector3.new(1.7,.25,.5),CFrame.new(0,.65,0),gold)
+  weaponPart("Lamina",Vector3.new(.65,3.4,.18),CFrame.new(0,2.4,0),Color3.fromRGB(195,210,225))
+  tip.Position=Vector3.new(0,4.1,0)
+ elseif className=="Mago" then
+  weaponPart("Haste",Vector3.new(.28,4.8,.28),CFrame.new(0,.8,0),wood,Enum.Material.Wood)
+  weaponPart("Coroa",Vector3.new(.85,.3,.85),CFrame.new(0,3.2,0),gold)
+  local crystal=weaponPart("Cristal",Vector3.new(.75,1.1,.75),CFrame.new(0,3.8,0)*CFrame.Angles(0,0,math.rad(45)),Color3.fromRGB(155,95,255),Enum.Material.Neon)
+  local light=Instance.new("PointLight"); light.Range=7; light.Brightness=.5; light.Color=crystal.Color; light.Parent=crystal
+  tip.Position=Vector3.new(0,4.2,0)
+ else
+  local points={Vector3.new(.65,-2,0),Vector3.new(.05,-1.3,0),Vector3.new(-.2,-.5,0),Vector3.new(-.2,.5,0),Vector3.new(.05,1.3,0),Vector3.new(.65,2,0)}
+  for i=1,#points-1 do
+   local a,b=points[i],points[i+1]
+   weaponPart("LaminaArco",Vector3.new(.18,.22,(b-a).Magnitude),CFrame.lookAt((a+b)/2,b),gold)
+  end
+  weaponPart("Corda",Vector3.new(.035,4,.035),CFrame.new(.65,0,0),Color3.fromRGB(210,235,205))
+  tip.Position=Vector3.new(.65,0,-.5)
  end
  tool.Parent=backpack; h:EquipTool(tool)
 end
@@ -227,13 +251,15 @@ if not zone:FindFirstChild("Campo") then
  part(zone,"Arena",Vector3.new(55,.4,45),CFrame.new(0,2.2,-235),stone,Enum.Material.Cobblestone)
  for _, x in {-30,30} do for _, z in {-215,-255} do part(zone,"Pilar",Vector3.new(5,12,5),CFrame.new(x,8,z),stone) end end
 end
-local mob,health,mobAI
+local enemies={}
+local spawnPositions={Vector3.new(-14,7.4,-245),Vector3.new(14,7.4,-245),Vector3.new(0,7.4,-221)}
 local arenaCenter=Vector3.new(0,7.4,-235)
 local patrolPoints={Vector3.new(-16,7.4,-247),Vector3.new(16,7.4,-247),Vector3.new(16,7.4,-223),Vector3.new(-16,7.4,-223)}
-local function spawnMob()
- mob=model("GolemDePedra",zone); health=120
+local function spawnMob(slot)
+ local mob=model("GolemDePedra",zone); local health=120
+ local origin=spawnPositions[slot]
  mob:SetAttribute("Health",health); mob:SetAttribute("MaxHealth",120)
- local torso=part(mob,"Corpo",Vector3.new(5,5,3),CFrame.new(arenaCenter),stone)
+ local torso=part(mob,"Corpo",Vector3.new(5,5,3),CFrame.new(origin),stone)
  mob.PrimaryPart=torso
  local joints={}
  local function body(name,size,offset,color,pivot)
@@ -260,14 +286,55 @@ local function spawnMob()
  local fill=Instance.new("Frame"); fill.Name="Fill"; fill.Size=UDim2.fromScale(1,1); fill.BorderSizePixel=0
  fill.BackgroundColor3=Color3.fromRGB(70,200,90); fill.Parent=track
  local border=Instance.new("UIStroke"); border.Color=gold; border.Thickness=1; border.Parent=track
- mobAI={position=arenaCenter,forward=Vector3.new(0,0,-1),goal=1,joints=joints,phase=0,nextAttack=0}
+ enemies[mob]={health=120,slot=slot,ai={position=origin,forward=Vector3.new(0,0,-1),goal=slot,joints=joints,phase=0,nextAttack=0}}
 end
-spawnMob()
+for slot=1,#spawnPositions do spawnMob(slot) end
 local cooldowns={}; local requests={}
 local function sight(origin,target,exclude,expected)
  local params=RaycastParams.new(); params.FilterType=Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances={exclude}
  local hit=workspace:Raycast(origin,target-origin,params)
  return not hit or hit.Instance:IsDescendantOf(expected)
+end
+-- Regras de combate por classe. O cliente envia intenção, nunca dano ou mana.
+local combatProfiles={
+ Guerreiro={basicRange=10,basicDamage=15,basicCooldown=.6,skill="Spin",skillName="Golpe Giratório",skillRange=14,skillDamage=45,mana=20,cooldown=3,duration=.65},
+ Mago={basicRange=60,basicDamage=18,basicCooldown=.7,projectile="Orb",speed=75,skill="Spirits",skillName="Espíritos",skillRange=65,skillDamage=35,mana=30,cooldown=4,duration=.7},
+ Elfa={basicRange=55,basicDamage=16,basicCooldown=.6,projectile="Arrow",speed=100,skill="MultiShot",skillName="Multi-Shot",skillRange=55,skillDamage=32,mana=25,cooldown=3,duration=.45},
+}
+local function eligibleEnemy(enemy,origin,range,character)
+ local data=enemies[enemy]
+ return data and data.health>0 and enemy.Parent and enemy.PrimaryPart
+  and (enemy.PrimaryPart.Position-origin).Magnitude<=range
+  and sight(origin,enemy.PrimaryPart.Position,character,enemy)
+end
+local function dealDamage(player,enemy,amount,skillHit)
+ local data=enemies[enemy]
+ if not data or data.health<=0 or not enemy.Parent then return end
+ local damage=math.min(data.health,amount)
+ local position=enemy.PrimaryPart.Position
+ data.health-=damage; enemy:SetAttribute("Health",data.health)
+ R:FireAllClients("Damage",position,damage,skillHit)
+ if data.health==0 then
+  enemies[enemy]=nil; enemy:Destroy()
+  local xp=(player:GetAttribute("Experience") or 0)+50
+  local level=player:GetAttribute("Level") or 1
+  while xp>=100 do xp-=100; level+=1 end
+  player:SetAttribute("Experience",xp); player:SetAttribute("Level",level)
+  R:FireClient(player,"+50 XP · Nível "..level)
+  task.delay(5,function() spawnMob(data.slot) end)
+ end
+end
+local function launchProjectile(player,character,origin,enemy,damage,range,speed,kind,skillHit)
+ local destination=enemy.PrimaryPart.Position
+ local duration=math.clamp((destination-origin).Magnitude/speed,.12,.9)
+ R:FireAllClients("Projectile",kind,origin,destination,enemy,duration,workspace:GetServerTimeNow())
+ task.delay(duration,function()
+  local h=character:FindFirstChildOfClass("Humanoid")
+  if player.Parent and player.Character==character and h and h.Health>0
+   and eligibleEnemy(enemy,origin,range+5,character) then
+   dealDamage(player,enemy,damage,skillHit)
+  end
+ end)
 end
 R.OnServerEvent:Connect(function(player,action,value)
  if typeof(action)~="string" then return end
@@ -275,50 +342,89 @@ R.OnServerEvent:Connect(function(player,action,value)
  if now-(requests[player] or -math.huge)<.08 then return end; requests[player]=now
  if action=="Class" then
   if typeof(value)~="string" or not classes[value] or player:GetAttribute("Class") then return end
-  player:SetAttribute("Class",value); if player.Character then applyClass(player,player.Character) end; return
+  player:SetAttribute("Class",value)
+  local profile=combatProfiles[value]
+  player:SetAttribute("SkillName",profile.skillName); player:SetAttribute("SkillMana",profile.mana)
+  if player.Character then applyClass(player,player.Character) end
+  return
  end
- if not player:GetAttribute("Class") then return end
+ local className=player:GetAttribute("Class")
+ local profile=combatProfiles[className]
+ if not profile then return end
  if action=="Equip" then
   if typeof(value)~="string" or not allowed[value] then return end
   player:SetAttribute("Equipped"..value,not player:GetAttribute("Equipped"..value)); refreshEquipment(player); return
  end
- if action~="Basic" and action~="Spin" then return end
- local c=player.Character; local h=c and c:FindFirstChildOfClass("Humanoid"); local root=c and c:FindFirstChild("HumanoidRootPart")
+ if action~="Basic" and action~="Skill" then return end
+ local character=player.Character
+ local h=character and character:FindFirstChildOfClass("Humanoid")
+ local root=character and character:FindFirstChild("HumanoidRootPart")
  if not h or h.Health<=0 or not root then return end
- if not c:FindFirstChild("MUBloxSword") then R:FireClient(player,"Equipe a espada"); return end
- local spin=action=="Spin"
- if spin and player:GetAttribute("Class")~="Guerreiro" then R:FireClient(player,"Skill exclusiva do Guerreiro"); return end
+ local weapon=character:FindFirstChild("MUBloxWeapon")
+ if not weapon or weapon:GetAttribute("WeaponClass")~=className then R:FireClient(player,"Equipe sua arma"); return end
+ local isSkill=action=="Skill"
  local times=cooldowns[player] or {}; cooldowns[player]=times
  if now<(times[action] or 0) or now<(times.Lock or 0) then return end
- -- O ataque básico exige o alvo clicado. O Giro consulta o alcance no servidor.
- local hitMob=nil
- if spin then
-  if mob and health>0 and (root.Position-mob.PrimaryPart.Position).Magnitude<=14
-   and sight(root.Position,mob.PrimaryPart.Position,c,mob) then hitMob=mob end
+ local targets={}
+ local origin=root.Position
+ local forward=root.CFrame.LookVector
+ if not isSkill then
+  if not eligibleEnemy(value,origin,profile.basicRange,character) then R:FireClient(player,"Clique em um monstro ao alcance"); return end
+  targets[1]=value
+ elseif className=="Mago" then
+  -- A câmera escolhe os candidatos. Registro, alcance, obstáculos e duplicatas
+  -- são conferidos no servidor; nenhum candidato pode definir seu próprio dano.
+  if value~=nil and typeof(value)~="table" then return end
+  local seen={}
+  for index,enemy in ipairs(value or {}) do
+   if index>32 then break end
+   if not seen[enemy] and eligibleEnemy(enemy,origin,profile.skillRange,character) then
+    seen[enemy]=true; table.insert(targets,enemy)
+   end
+  end
  else
-  if not mob or value~=mob or health<=0 then return end
-  if (root.Position-mob.PrimaryPart.Position).Magnitude>10 then R:FireClient(player,"Aproxime-se do golem"); return end
-  if not sight(root.Position,mob.PrimaryPart.Position,c,mob) then return end
-  hitMob=mob
+  for enemy in pairs(enemies) do
+   if not eligibleEnemy(enemy,origin,profile.skillRange,character) then continue end
+   local delta=enemy.PrimaryPart.Position-origin
+   local inCone=true
+   if className=="Elfa" then
+    local flat=Vector3.new(delta.X,0,delta.Z)
+    local facing=Vector3.new(forward.X,0,forward.Z)
+    inCone=flat.Magnitude<.1 or (facing.Magnitude>.1 and facing.Unit:Dot(flat.Unit)>=math.cos(math.rad(40)))
+   end
+   if inCone then table.insert(targets,enemy) end
+  end
  end
  local mana=player:GetAttribute("Mana") or 0
- if spin and mana<20 then R:FireClient(player,"Mana insuficiente"); return end
- times[action]=now+(spin and 3 or .6); times.Lock=now+(spin and .65 or .32)
- if spin then player:SetAttribute("Mana",mana-20); player:SetAttribute("SpinReadyAt",now+3) end
- player:SetAttribute("MUBloxAttackKind",action); player:SetAttribute("MUBloxAttackTime",now)
- R:FireClient(player,spin and "Golpe Giratório!" or "Acerto!")
- if not hitMob then return end
- local damage=math.min(health,spin and 45 or 15)
- local hitPosition=hitMob.PrimaryPart.Position
- health-=damage; hitMob:SetAttribute("Health",health)
- R:FireAllClients("Damage",hitPosition,damage,spin)
- if health==0 then
-  mob:Destroy(); mob=nil
-  local xp=(player:GetAttribute("Experience") or 0)+50
-  local level=player:GetAttribute("Level") or 1
-  if xp>=100 then xp-=100; level+=1 end
-  player:SetAttribute("Experience",xp); player:SetAttribute("Level",level)
-  R:FireClient(player,"+50 XP · Nível "..level); task.delay(5,spawnMob)
+ if isSkill and mana<profile.mana then R:FireClient(player,"Mana insuficiente"); return end
+ local animation=isSkill and profile.skill or profile.projectile or "Basic"
+ local animationDuration=isSkill and profile.duration or (className=="Guerreiro" and .32 or .4)
+ times[action]=now+(isSkill and profile.cooldown or profile.basicCooldown)
+ times.Lock=now+animationDuration
+ if isSkill then
+  player:SetAttribute("Mana",mana-profile.mana)
+  player:SetAttribute("SpinReadyAt",now+profile.cooldown)
+ end
+ player:SetAttribute("MUBloxAttackKind",animation)
+ player:SetAttribute("MUBloxAttackDuration",animationDuration)
+ player:SetAttribute("MUBloxAttackTime",now)
+ local castOrigin=origin+Vector3.new(0,1,0)+forward*1.5
+ local handle=weapon:FindFirstChild("Handle")
+ local castPoint=handle and handle:FindFirstChild("CastPoint")
+ if castPoint and (castPoint.WorldPosition-origin).Magnitude<10 then castOrigin=castPoint.WorldPosition end
+ if isSkill then
+  R:FireClient(player,profile.skillName.."!")
+  if className~="Guerreiro" then R:FireAllClients("Cast",animation,castOrigin,forward,now) end
+ end
+ for _, enemy in targets do
+  local damage=isSkill and profile.skillDamage or profile.basicDamage
+  if className=="Guerreiro" then
+   dealDamage(player,enemy,damage,isSkill)
+  else
+   local kind=isSkill and className=="Mago" and "Spirit" or profile.projectile
+   launchProjectile(player,character,castOrigin,enemy,damage,isSkill and profile.skillRange or profile.basicRange,
+    kind=="Spirit" and 65 or profile.speed,kind,isSkill)
+  end
  end
 end)
 Players.PlayerRemoving:Connect(function(p) cooldowns[p]=nil; requests[p]=nil end)
@@ -347,15 +453,10 @@ local function findEnemyTarget(enemy,position)
  end
  return selected,distance
 end
-local elapsedAI=0
-game:GetService("RunService").Heartbeat:Connect(function(dt)
- elapsedAI+=dt
- if elapsedAI<.05 then return end
- local step=math.min(elapsedAI,.1); elapsedAI=0
- if not mob or not mob.Parent or health<=0 then return end
- local ai=mobAI
+local function updateEnemy(mob,data,step,now)
+ if not mob.Parent or data.health<=0 then return end
+ local ai=data.ai
  local torso=mob.PrimaryPart
- local now=workspace:GetServerTimeNow()
  local target,distance=findEnemyTarget(mob,ai.position)
  local moving=false
  local armAngle=0
@@ -408,4 +509,12 @@ game:GetService("RunService").Heartbeat:Connect(function(dt)
   elseif name=="ArmRight" then angle=ai.attack and armAngle or walk*.6 end
   entry.joint.C0=entry.rest*CFrame.Angles(angle,0,0)
  end
+end
+local elapsedAI=0
+game:GetService("RunService").Heartbeat:Connect(function(dt)
+ elapsedAI+=dt
+ if elapsedAI<.05 then return end
+ local step=math.min(elapsedAI,.1); elapsedAI=0
+ local now=workspace:GetServerTimeNow()
+ for enemy,data in pairs(enemies) do updateEnemy(enemy,data,step,now) end
 end)

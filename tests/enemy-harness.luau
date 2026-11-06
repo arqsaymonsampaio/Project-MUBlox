@@ -27,6 +27,13 @@ local function scenario(options)
  for _, name in {"ArmLeft","ArmRight","LegLeft","LegRight"} do
   mobAI.joints[name]={joint={},rest=setmetatable({},frameMT)}
  end
+ local enemies={[mob]={health=health,ai=mobAI}}
+ local otherAI
+ if options.extra then
+  local other={Parent=true,PrimaryPart={}}
+  otherAI={position=vec(10,7.4,-235),forward=vec(0,0,-1),goal=2,joints={},phase=0,nextAttack=0}
+  enemies[other]={health=120,ai=otherAI}
+ end
  local damage=0
  local h={Health=options.dead and 0 or 100}
  function h:TakeDamage(amount) damage+=amount; self.Health-=amount end
@@ -40,9 +47,9 @@ local function scenario(options)
  -- AI_PLACEHOLDER
  return {
   tick=function(dt) now+=dt;callback(dt) end,
-  state=function() return {position=mobAI.position,attack=mobAI.attack,damage=damage,joints=mobAI.joints} end,
+  state=function() return {position=mobAI.position,attack=mobAI.attack,damage=damage,joints=mobAI.joints,otherPosition=otherAI and otherAI.position} end,
   movePlayer=function(x) root.Position=vec(x,7.4,-235) end,
-  killMob=function() health=0;mob.Parent=nil end,
+  killMob=function() enemies[mob].health=0;mob.Parent=nil end,
  }
 end
 local passed=0
@@ -76,5 +83,10 @@ test("death cancels pending hit",function()
  local s=scenario();s.tick(.1);s.killMob()
  for _=1,8 do s.tick(.1) end
  assert(s.state().damage==0)
+end)
+test("multiple enemies keep independent patrol state",function()
+ local s=scenario({empty=true,extra=true});s.tick(.1)
+ local r=s.state();assert(r.position.X<0 and r.otherPosition.X>10)
+ s.killMob();local before=r.otherPosition.X;s.tick(.1);assert(s.state().otherPosition.X>before)
 end)
 print(passed.." enemy scenarios passed")
