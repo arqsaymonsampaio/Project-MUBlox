@@ -3,6 +3,8 @@ local Players=game:GetService("Players")
 local UIS=game:GetService("UserInputService")
 local CAS=game:GetService("ContextActionService")
 local Run=game:GetService("RunService")
+local TweenService=game:GetService("TweenService")
+local Debris=game:GetService("Debris")
 local player=Players.LocalPlayer
 local R=game:GetService("ReplicatedStorage"):WaitForChild("MUBloxAction")
 local mouse=player:GetMouse()
@@ -50,8 +52,32 @@ local function notify(value)
  noticeId+=1; local id=noticeId; notice.Text=value
  task.delay(2.5,function() if id==noticeId then notice.Text="" end end)
 end
-R.OnClientEvent:Connect(notify)
-skill.Activated:Connect(function() notify("Guerreiro: clique direito no golem · 20 mana") end)
+local damageSequence=0
+local function showDamage(position,amount,spin)
+ local camera=workspace.CurrentCamera
+ if not camera or (camera.CFrame.Position-position).Magnitude>150 then return end
+ damageSequence+=1
+ -- O marcador é independente do monstro, para sobreviver ao golpe final.
+ local marker=make("Part",{Name="DamageMarker",Size=Vector3.new(.1,.1,.1),
+  Position=position,Transparency=1,Anchored=true,CanCollide=false,CanTouch=false,CanQuery=false},workspace)
+ local offset=Vector3.new(((damageSequence%3)-1)*.6,5,0)
+ local billboard=make("BillboardGui",{Size=UDim2.fromOffset(130,60),Adornee=marker,
+  StudsOffsetWorldSpace=offset,AlwaysOnTop=true,MaxDistance=150},marker)
+ local number=text(billboard,tostring(amount),UDim2.fromScale(1,1),UDim2.new(),spin and 32 or 26)
+ number.TextColor3=spin and Color3.fromRGB(255,190,65) or Color3.fromRGB(255,245,215)
+ number.TextStrokeTransparency=.25
+ TweenService:Create(billboard,TweenInfo.new(.9,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{
+  StudsOffsetWorldSpace=offset+Vector3.new(0,3,0)}):Play()
+ TweenService:Create(number,TweenInfo.new(.55,Enum.EasingStyle.Linear,Enum.EasingDirection.Out,0,false,.3),{
+  TextTransparency=1,TextStrokeTransparency=1}):Play()
+ Debris:AddItem(marker,1)
+end
+R.OnClientEvent:Connect(function(event,...)
+ if event=="Damage" then showDamage(...) else notify(event) end
+end)
+skill.Activated:Connect(function()
+ if player:GetAttribute("Class")=="Guerreiro" then R:FireServer("Spin") end
+end)
 -- Inventário: lateral direita; o centro permanece livre.
 local toggle=button(gui,"INVENTÁRIO · I",UDim2.fromOffset(165,36),UDim2.new(1,-181,0,65))
 local panel=make("Frame",{Name="EquipmentPanel",Size=UDim2.fromOffset(290,520),AnchorPoint=Vector2.new(1,0),Position=UDim2.new(1,-16,0,110),BackgroundColor3=Color3.fromRGB(19,20,22),Visible=false,Active=true},gui)
@@ -108,9 +134,17 @@ local function bindHealth(c)
 end
 player.CharacterAdded:Connect(bindHealth); if player.Character then task.spawn(bindHealth,player.Character) end
 UIS.InputBegan:Connect(function(input,processed)
- if processed or UIS:GetFocusedTextBox() or panel.Visible or not player:GetAttribute("Class") then return end
+ if processed or UIS:GetFocusedTextBox() or not player:GetAttribute("Class") then return end
+ -- Cliques dentro do inventário pertencem à interface; fora dele, ao mundo.
+ if panel.Visible then
+  local pointer=UIS:GetMouseLocation()-game:GetService("GuiService"):GetGuiInset()
+  local origin,size=panel.AbsolutePosition,panel.AbsoluteSize
+  if pointer.X>=origin.X and pointer.X<=origin.X+size.X
+   and pointer.Y>=origin.Y and pointer.Y<=origin.Y+size.Y then return end
+ end
  local action=input.UserInputType==Enum.UserInputType.MouseButton1 and "Basic" or input.UserInputType==Enum.UserInputType.MouseButton2 and "Spin" or nil
  if not action then return end
+ if action=="Spin" then R:FireServer("Spin"); return end
  local target=mouse.Target
  while target and target~=workspace do
   if target:IsA("Model") and target.Name=="GolemDePedra" then R:FireServer(action,target); return end
@@ -126,6 +160,25 @@ task.spawn(function() for _=1,10 do
 end end)
 -- Controlador único de animação: corpo, asas, braço e rastro.
 local states={}
+local function updateFootsteps(state,character,flying)
+ state.footsteps=state.footsteps or {}
+ for sound,volume in pairs(state.footsteps) do
+  if not sound.Parent then state.footsteps[sound]=nil
+  elseif flying then sound.Volume=0
+  else sound.Volume=volume; state.footsteps[sound]=nil end
+ end
+ if not flying then return end
+ -- Compatível com os sons clássicos e os AudioPlayers do Roblox.
+ local soundRoot=character:FindFirstChild("HumanoidRootPart")
+ if soundRoot then
+  for _, sound in soundRoot:GetDescendants() do
+   if sound.Name=="Running" and (sound:IsA("Sound") or sound:IsA("AudioPlayer")) then
+    if state.footsteps[sound]==nil then state.footsteps[sound]=sound.Volume end
+    sound.Volume=0
+   end
+  end
+ end
+end
 local jointsWanted={Root=true,RootJoint=true,LeftHip=true,RightHip=true,LeftKnee=true,RightKnee=true,LeftShoulder=true,RightShoulder=true,RightElbow=true,LeftElbow=true,["Left Hip"]=true,["Right Hip"]=true,["Left Shoulder"]=true,["Right Shoulder"]=true}
 Players.PlayerRemoving:Connect(function(p) states[p]=nil end)
 local function setupWings(armor)
@@ -161,6 +214,7 @@ Run.PreSimulation:Connect(function(dt)
    if tool~=state.tool then state.tool=tool; state.trail=setupTrail(tool) end
   end
   local flying=h.Health>0 and p:GetAttribute("EquippedWings")==true
+  updateFootsteps(state,c,flying)
   -- A velocidade horizontal também funciona para os outros jogadores.
   -- Ignorar o eixo vertical evita inclinar o corpo ao subir ou cair.
   local characterRoot=c:FindFirstChild("HumanoidRootPart")

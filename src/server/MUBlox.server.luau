@@ -203,21 +203,34 @@ R.OnServerEvent:Connect(function(player,action,value)
  end
  if action~="Basic" and action~="Spin" then return end
  local c=player.Character; local h=c and c:FindFirstChildOfClass("Humanoid"); local root=c and c:FindFirstChild("HumanoidRootPart")
- if not h or h.Health<=0 or not root or not mob or value~=mob then return end
+ if not h or h.Health<=0 or not root then return end
  if not c:FindFirstChild("MUBloxSword") then R:FireClient(player,"Equipe a espada"); return end
  local spin=action=="Spin"
  if spin and player:GetAttribute("Class")~="Guerreiro" then R:FireClient(player,"Skill exclusiva do Guerreiro"); return end
  local times=cooldowns[player] or {}; cooldowns[player]=times
  if now<(times[action] or 0) or now<(times.Lock or 0) then return end
- if (root.Position-mob.PrimaryPart.Position).Magnitude>(spin and 14 or 10) then R:FireClient(player,"Aproxime-se do golem"); return end
- if not sight(root.Position,mob.PrimaryPart.Position,c,mob) then return end
+ -- O ataque básico exige o alvo clicado. O Giro consulta o alcance no servidor.
+ local hitMob=nil
+ if spin then
+  if mob and health>0 and (root.Position-mob.PrimaryPart.Position).Magnitude<=14
+   and sight(root.Position,mob.PrimaryPart.Position,c,mob) then hitMob=mob end
+ else
+  if not mob or value~=mob or health<=0 then return end
+  if (root.Position-mob.PrimaryPart.Position).Magnitude>10 then R:FireClient(player,"Aproxime-se do golem"); return end
+  if not sight(root.Position,mob.PrimaryPart.Position,c,mob) then return end
+  hitMob=mob
+ end
  local mana=player:GetAttribute("Mana") or 0
  if spin and mana<20 then R:FireClient(player,"Mana insuficiente"); return end
  times[action]=now+(spin and 3 or .6); times.Lock=now+(spin and .65 or .32)
  if spin then player:SetAttribute("Mana",mana-20); player:SetAttribute("SpinReadyAt",now+3) end
  player:SetAttribute("MUBloxAttackKind",action); player:SetAttribute("MUBloxAttackTime",now)
- health=math.max(0,health-(spin and 45 or 15)); label.Text="GOLEM DE PEDRA\n"..health.." / 120 · 50 XP"
  R:FireClient(player,spin and "Golpe Giratório!" or "Acerto!")
+ if not hitMob then return end
+ local damage=math.min(health,spin and 45 or 15)
+ local hitPosition=hitMob.PrimaryPart.Position
+ health-=damage; label.Text="GOLEM DE PEDRA\n"..health.." / 120 · 50 XP"
+ R:FireAllClients("Damage",hitPosition,damage,spin)
  if health==0 then
   mob:Destroy(); mob=nil
   local xp=(player:GetAttribute("Experience") or 0)+50

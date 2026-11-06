@@ -24,7 +24,10 @@ Não execute os instaladores antigos junto com esta versão. Ao usar um lugar ex
 - Clique numa peça equipada para retirar; clique na mochila para equipar.
 - **W** na mochila: asas cosméticas com flutuação baixa, sem voo livre.
 - Clique esquerdo diretamente no golem, de perto: ataque básico.
-- Clique direito diretamente no golem: Golpe Giratório do Guerreiro, 20 mana e 3 segundos de recarga.
+- Clique direito no mundo (ou clique no primeiro slot de skill): Golpe Giratório do Guerreiro, mesmo sem alvo, com 20 mana e 3 segundos de recarga. Acerta o golem dentro de 14 studs e sem obstáculos.
+- Com inventário aberto, cliques fora do painel continuam controlando o combate; os cliques sobre as peças apenas equipam/retiram.
+- Ao flutuar, o som padrão de passos é silenciado e volta ao retirar as asas.
+- O dano efetivo aparece sobre o monstro, sobe e desaparece, inclusive no golpe final.
 - A câmera padrão também usa o botão direito ao arrastar.
 
 O golem fica além do portão norte, no sentido oposto ao ponto de nascimento. Revida parado, concede 50 XP ao jogador que dá o último golpe e reaparece após cinco segundos. Cada 100 XP sobe um nível. Os níveis ainda não concedem novos atributos.
@@ -40,6 +43,8 @@ O golem fica além do portão norte, no sentido oposto ao ponto de nascimento. R
 - Dano, alcance, mana e recarga validados pelo servidor.
 
 ## Limitações e validação
+
+Sete cenários de combate passaram usando o callback real do servidor com dependências simuladas: alvo do ataque básico, alcance/obstáculos, Giro sem alvo, acerto em área, recarga, restrições de classe/mana/arma/vida e recompensa no golpe final. Rode `python tests/run_combat.py /caminho/para/luau`. Sons, números flutuantes e interação com o painel ainda precisam de teste no Studio.
 
 A sintaxe dos scripts foi verificada com o compilador oficial Luau. O build foi gerado com Rojo 7.7.1 e os objetos/fontes resultantes foram conferidos. Isso não substitui um teste no Roblox Studio.
 
