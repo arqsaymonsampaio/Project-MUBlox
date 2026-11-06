@@ -1,0 +1,33 @@
+{
+  "name": "MUBlox",
+  "servePort": 34872,
+  "tree": {
+    "$className": "DataModel",
+    "$ignoreUnknownInstances": true,
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$ignoreUnknownInstances": true,
+      "MUBloxAction": {
+        "$className": "RemoteEvent"
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
+      "MUBloxServerV2": {
+        "$path": "src/server/MUBlox.server.luau"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$ignoreUnknownInstances": true,
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$ignoreUnknownInstances": true,
+        "MUBloxClientV2": {
+          "$path": "src/client/MUBlox.client.luau"
+        }
+      }
+    }
+  }
+}
