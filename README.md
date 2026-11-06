@@ -36,13 +36,14 @@ O golem fica além do portão norte, no sentido oposto ao ponto de nascimento. R
 - HUD, inventário lateral, peças cosméticas, espada e asas.
 - Controlador com suporte a Motor6D e AnimationConstraint, incluindo postura e ataque procedural.
 - Batida original das asas preservada; a revisão posterior de articulação das asas não está aplicada.
+- Com asas, o tronco fica quase ereto parado e inclina até 20° ao se deslocar, com transição suave baseada na velocidade horizontal.
 - Dano, alcance, mana e recarga validados pelo servidor.
 
 ## Limitações e validação
 
 A sintaxe dos scripts foi verificada com o compilador oficial Luau. O build foi gerado com Rojo 7.7.1 e os objetos/fontes resultantes foram conferidos. Isso não substitui um teste no Roblox Studio.
 
-A postura com AnimationConstraint e os movimentos da espada ainda precisam de confirmação visual. As armaduras são peças provisórias; acessórios do avatar podem se sobrepor. Só o Guerreiro possui skill; as demais classes usam o ataque básico provisório. Não há salvamento de progresso, PvP, economia, interiores de casas nem controle de combate para celular. A interface redimensiona, mas precisa de validação em dispositivos.
+A postura inclinada com AnimationConstraint foi confirmada pelo usuário no Studio. A transição entre repouso e movimento e os movimentos da espada ainda precisam de confirmação visual. As armaduras são peças provisórias; acessórios do avatar podem se sobrepor. Só o Guerreiro possui skill; as demais classes usam o ataque básico provisório. Não há salvamento de progresso, PvP, economia, interiores de casas nem controle de combate para celular. A interface redimensiona, mas precisa de validação em dispositivos.
 
 Teste após conectar: escolher classe, vestir/retirar peças, abrir com I, equipar asas, conferir postura lateral, atacar e usar Giro, receber dano, ganhar XP e renascer.
 

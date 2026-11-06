@@ -161,6 +161,14 @@ Run.PreSimulation:Connect(function(dt)
    if tool~=state.tool then state.tool=tool; state.trail=setupTrail(tool) end
   end
   local flying=h.Health>0 and p:GetAttribute("EquippedWings")==true
+  -- A velocidade horizontal também funciona para os outros jogadores.
+  -- Ignorar o eixo vertical evita inclinar o corpo ao subir ou cair.
+  local characterRoot=c:FindFirstChild("HumanoidRootPart")
+  local velocity=characterRoot and characterRoot.AssemblyLinearVelocity or Vector3.zero
+  local speed=Vector3.new(velocity.X,0,velocity.Z).Magnitude
+  local moveTarget=flying and speed>.5 and math.clamp(speed/math.max(h.WalkSpeed*.8,1),0,1) or 0
+  local moveBlend=state.flightMoveBlend or 0
+  state.flightMoveBlend=flying and (moveBlend+(moveTarget-moveBlend)*(1-math.exp(-8*dt))) or 0
   local kind=p:GetAttribute("MUBloxAttackKind"); local time=p:GetAttribute("MUBloxAttackTime")
   local elapsed=time and now-time or math.huge; local duration=kind=="Spin" and .65 or .32
   local attacking=h.Health>0 and elapsed>=0 and elapsed<duration
@@ -195,7 +203,11 @@ local parentPart = j:IsA("AnimationConstraint")
 local root = parentPart == c:FindFirstChild("HumanoidRootPart")
 local breath = math.sin(now * 2.8)
 if root then
- if flying then x = -20 + breath * 2; bob = breath * .16 end
+ if flying then
+  local movement = state.flightMoveBlend or 0
+  x = -3 - 17 * movement + breath * (1 + movement)
+  bob = breath * .16
+ end
  if attacking then
   y = kind == "Spin"
    and progress * progress * (3 - 2 * progress) * 360
