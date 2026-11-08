@@ -1,4 +1,4 @@
-# Guerreiro inicial — atualização V3
+# Guerreiro inicial — correção de encaixe V4
 
 Este pacote instala um **visual experimental R15** do Guerreiro sobre o personagem
 que já movimenta no MUBlox. A malha vem do protótipo Blender, com roupa inicial,
@@ -6,7 +6,33 @@ rosto e cabelo. É um teste jogável de integração; ainda precisa de conferên
 Studio para avaliar encaixes, juntas, escala e cores. Não é um avatar pronto para
 publicar no catálogo Roblox.
 
+## Atualização para quem já importou o modelo V3
+
+Mantenha o FBX que já está no Studio. Esta correção altera somente o servidor.
+
+1. Pare o Play e substitua `src\server\MUBlox.server.luau` pelo arquivo atual.
+   O nome deve ser exatamente esse, sem sufixos como `(1)` ou `(2)`.
+2. Mantenha o Rojo conectado à pasta correta do projeto.
+3. No Studio, abra `ServerScriptService → MUBloxServerV2`. A primeira linha deve
+   começar com `-- MUBLOX_VISUAL_V4`. Isso confirma que o arquivo sincronizou.
+4. Inicie Play e escolha Guerreiro. A Saída deve informar
+   `MUBlox visual: V4, 29 malhas`.
+
+O marcador do arquivo 3D continua `FormatV3`: não é necessário trocar o asset
+para usar o encaixe V4. Se o diagnóstico mostrar `Vnil`, a identificação não foi
+aplicada pela rotina atual; confira a primeira linha do script em execução.
+
 ## O que mudou nesta versão
+
+- Encaixe usa o vetor completo entre as articulações (X, Y e Z), em vez de
+  considerar apenas a distância vertical.
+- Orientação do braço e antebraço segue o eixo real de cada osso. Mãos ficam
+  alinhadas ao punho mantendo suas proporções.
+- Ombreiras e luvas usam o mesmo sistema de orientação das malhas do corpo.
+- Regressão testada com as medidas reais fornecidas pelo usuário: os dois lados
+  e ambas as extremidades de cada segmento, em três escalas de importação.
+
+Mantido da V3:
 
 - Ombro inteiro acompanha o braço: não há mais uma metade cortada presa ao tórax.
 - Palma menor, polegar e quatro dedos definidos; luva inicial em forma de tecido,
@@ -14,8 +40,8 @@ publicar no catálogo Roblox.
 - Comprimento dos braços calculado pelas articulações de ombro/cotovelo/punho
   quando disponíveis, com escala de reserva para rigs sem esses attachments.
 - Mãos preservam proporções com escala uniforme e são alinhadas ao punho.
-- Ao carregar, a Saída do Studio informa `MUBlox visual: V3, 29 malhas`.
-  Se não aparecer V3, confira a sincronização do script e o modelo instalado.
+- Ao carregar, a Saída do Studio informa `MUBlox visual: V4, 29 malhas`.
+  Se não aparecer V4, confira a sincronização do script e o modelo instalado.
 
 Mantido da V2:
 
@@ -60,8 +86,8 @@ Mantido da V2:
    ao modelo importado. O GitHub e o Rojo, sozinhos, não guardam os IDs dos
    assets que você acabou de importar no Studio.
 
-**Atualize o servidor e reimporte o FBX.** Trocar somente o código não corrige
-as malhas da versão anterior. Deve existir apenas um modelo com o nome exato
+Para instalações V1/V2, atualize o servidor e importe o FBX atual. Quem já está
+com o modelo V3 precisa somente atualizar o servidor para esta correção. Deve existir apenas um modelo com o nome exato
 `MUBloxWarriorVisual` dentro de ServerStorage. Não misture partes das versões.
 
 Não precisa tornar o jogo público para testar no Studio. A importação pode
@@ -113,7 +139,8 @@ não é uma promessa de acabamento idêntico no jogo.
   restauração de transparência e independência das asas.
 - Testes existentes de combate e IA, compilação Luau e build Rojo.
 - A integração da V1 foi confirmada pelo usuário no Studio. Os ajustes da
-  **V3 ainda precisam de conferência visual no Studio**, especialmente nas juntas.
+  **V4 ainda precisa de conferência visual no Studio**. O alinhamento foi testado
+  matematicamente com o avatar informado, mas isso não substitui essa conferência.
 
 Fontes: `art/blender/criar_corpo_base.py` e
 `art/blender/exportar_corpo_roblox.py` no repositório.

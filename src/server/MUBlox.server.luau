@@ -1,4 +1,4 @@
-
+-- MUBLOX_VISUAL_V4: encaixe dos bracos pelos eixos reais das articulacoes.
 local Players = game:GetService("Players")
 local R = game:GetService("ReplicatedStorage"):WaitForChild("MUBloxAction")
 local classes = {Guerreiro={150,60,Color3.fromRGB(165,40,28)}, Mago={90,150,Color3.fromRGB(35,65,150)}, Elfa={110,100,Color3.fromRGB(45,135,85)}}
@@ -154,16 +154,16 @@ local function validateStarterTemplate(template,character)
  end
  return entries
 end
--- V3 arms: fit length to joint positions, not arbitrary MeshPart bounding boxes.
+-- Fit complete 3D joint vectors; some R15 packages have diagonal local joint axes.
 local function starterScale(entry,references)
  local body=entry.body
  local ratio=body.Size/entry.bindSize
- if not entry.v2 then return ratio,Vector3.zero end
+ if not entry.v2 then return ratio,Vector3.zero,CFrame.identity end
  local side=string.sub(entry.name,1,4)=="Left" and "Left" or "Right"
  local isArm=string.find(entry.name,"Arm") or string.find(entry.name,"Hand")
  local referenceName=isArm and side.."UpperArm" or (string.find(entry.name,"Leg") or string.find(entry.name,"Foot")) and side.."UpperLeg"
  local reference=referenceName and references[referenceName]
- if not reference then return ratio,Vector3.zero end
+ if not reference then return ratio,Vector3.zero,CFrame.identity end
  if entry.v3 and isArm then
   local function attachment(part,joint)
    local value=part:FindFirstChild(side..joint.."RigAttachment")
@@ -174,7 +174,7 @@ local function starterScale(entry,references)
    if not ref then return ratio.Y end
    local top,bottom=attachment(ref.body,topJoint),attachment(ref.body,bottomJoint)
    if top and bottom then
-    local span=math.abs(top.Position.Y-bottom.Position.Y)
+    local span=(top.Position-bottom.Position).Magnitude
     if span>.001 then return span/(ref.bindSize.Y*spanFraction) end
    end
    return ref.body.Size.Y/ref.bindSize.Y
@@ -182,18 +182,26 @@ local function starterScale(entry,references)
   local upper=axial(side.."UpperArm","Shoulder","Elbow",.58/.75)
   local lower=axial(side.."LowerArm","Elbow","Wrist",1)
   local width=math.min(upper,lower)
-  local joint,pivotFraction,height
-  if string.find(entry.name,"UpperArm") then joint="Shoulder"; pivotFraction=.205/.75; height=upper
-  elseif string.find(entry.name,"LowerArm") then joint="Elbow"; pivotFraction=.5; height=lower
+  local joint,bottomJoint,pivotFraction,height
+  if string.find(entry.name,"UpperArm") then joint="Shoulder"; bottomJoint="Elbow"; pivotFraction=.205/.75; height=upper
+  elseif string.find(entry.name,"LowerArm") then joint="Elbow"; bottomJoint="Wrist"; pivotFraction=.5; height=lower
   else joint="Wrist"; pivotFraction=.5; height=width end
   ratio=Vector3.new(width,height,width)
   local target=attachment(body,joint)
   local targetPoint=target and target.Position or Vector3.new(0,body.Size.Y*.5,0)
   local sourcePoint=Vector3.new(0,entry.bindSize.Y*pivotFraction,0)
-  return ratio,targetPoint-sourcePoint*ratio
+  local bottom=bottomJoint and attachment(body,bottomJoint)
+  local axis=bottom and targetPoint-bottom.Position or bottomJoint and Vector3.new(0,1,0) or targetPoint
+  if axis.Magnitude<.001 then axis=Vector3.new(0,1,0) end
+  local up=axis.Unit
+  local right=up:Cross(Vector3.new(0,0,1))
+  if right.Magnitude<.001 then right=up:Cross(Vector3.new(1,0,0)) end
+  right=right.Unit
+  local rotation=CFrame.fromMatrix(Vector3.zero,right,up,right:Cross(up))
+  return ratio,targetPoint-rotation:VectorToWorldSpace(sourcePoint*ratio),rotation
  end
  local shared=reference.body.Size/reference.bindSize
- return Vector3.new(shared.X,ratio.Y,shared.Z),Vector3.zero
+ return Vector3.new(shared.X,ratio.Y,shared.Z),Vector3.zero,CFrame.identity
 end
 local function applyStarterVisual(player,character,rebuild)
  if player.Character~=character then return false end
@@ -208,12 +216,12 @@ local function applyStarterVisual(player,character,rebuild)
   local references={}
   for _, entry in entries do references[entry.name]=entry end
   visualModel:SetAttribute("FormatV2",entries[1].v2)
-  local revision=entries[1].v3 and 3 or entries[1].v2 and 2 or 1
+  local revision=entries[1].v3 and 4 or entries[1].v2 and 2 or 1
   visualModel:SetAttribute("VisualRevision",revision)
   -- Prepare every mesh before hiding the original avatar.
   for _, entry in entries do
    local body=entry.body
-   local ratio,pivotOffset=starterScale(entry,references)
+   local ratio,pivotOffset,fitRotation=starterScale(entry,references)
    local relative=entry.frame:ToObjectSpace(entry.visual.CFrame)
    local copy=entry.visual:Clone()
    for _, child in copy:GetDescendants() do
@@ -221,9 +229,10 @@ local function applyStarterVisual(player,character,rebuild)
    end
    local localScale=dimensionsInFrame(ratio,relative.Rotation:Inverse())
    copy.Size=entry.visual.Size*localScale
-   copy.CFrame=body.CFrame*CFrame.new(relative.Position*ratio+pivotOffset)*relative.Rotation
+   copy.CFrame=body.CFrame*CFrame.new(pivotOffset)*fitRotation*CFrame.new(relative.Position*ratio)*relative.Rotation
    copy.Anchored=false; copy.Massless=true; copy.CanCollide=false; copy.CanTouch=false; copy.CanQuery=false
    copy:SetAttribute("BodyPart",entry.name)
+   copy:SetAttribute("FitRotation",fitRotation)
    copy:SetAttribute("HideSlot",entry.slot)
    copy:SetAttribute("BaseTransparency",entry.visual.Transparency)
    copy.Parent=visualModel
@@ -266,22 +275,29 @@ local function refreshEquipment(player)
  local starter=c:FindFirstChild("MUBloxStarterVisual")
  syncStarterVisibility(player,starter)
  local function fitted(body)
-  if not starter or not starter:GetAttribute("FormatV2") then return body.Size,Vector3.zero end
+  if not starter or not starter:GetAttribute("FormatV2") then return body.Size,Vector3.zero,CFrame.identity end
+  local rotation=CFrame.identity
+  for _, visual in starter:GetChildren() do
+   if visual:IsA("BasePart") and visual:GetAttribute("BodyPart")==body.Name then
+    rotation=visual:GetAttribute("FitRotation") or CFrame.identity; break
+   end
+  end
+  local fittingFrame=body.CFrame*rotation
   local low=Vector3.new(math.huge,math.huge,math.huge)
   local high=-low
   local found=false
   for _, visual in starter:GetChildren() do
    if visual:IsA("BasePart") and visual:GetAttribute("BodyPart")==body.Name then
     for _, x in {-1,1} do for _, y in {-1,1} do for _, z in {-1,1} do
-     local corner=body.CFrame:PointToObjectSpace(visual.CFrame:PointToWorldSpace(visual.Size*Vector3.new(x,y,z)*.5))
+     local corner=fittingFrame:PointToObjectSpace(visual.CFrame:PointToWorldSpace(visual.Size*Vector3.new(x,y,z)*.5))
      low=Vector3.new(math.min(low.X,corner.X),math.min(low.Y,corner.Y),math.min(low.Z,corner.Z))
      high=Vector3.new(math.max(high.X,corner.X),math.max(high.Y,corner.Y),math.max(high.Z,corner.Z))
      found=true
     end end end
    end
   end
-  if not found then return body.Size,Vector3.zero end
-  return high-low,(high+low)*.5
+  if not found then return body.Size,Vector3.zero,CFrame.identity end
+  return high-low,(high+low)*.5,rotation
  end
  local function limb(a,b) return c:FindFirstChild(a) or c:FindFirstChild(b) end
  local torso=limb("UpperTorso","Torso")
@@ -316,15 +332,22 @@ local function refreshEquipment(player)
  end
  for _, side in {"Left","Right"} do
   local arm=limb(side.."UpperArm",side.." Arm")
-  if player:GetAttribute("EquippedArmor") and arm then piece("Ombreira",arm,Vector3.new(arm.Size.X*1.6,.8,arm.Size.Z*1.6),CFrame.new(0,arm.Size.Y*.35,0)) end
+  if player:GetAttribute("EquippedArmor") and arm then
+   if starter and starter:GetAttribute("FormatV2") then
+    local size,offset,rotation=fitted(arm)
+    piece("Ombreira",arm,Vector3.new(size.X*1.25,math.max(.25,size.Y*.32),size.Z*1.25),rotation*CFrame.new(offset+Vector3.new(0,size.Y*.34,0)))
+   else
+    piece("Ombreira",arm,Vector3.new(arm.Size.X*1.6,.8,arm.Size.Z*1.6),CFrame.new(0,arm.Size.Y*.35,0))
+   end
+  end
   for _, info in {{"Gloves",side.."Hand",side.." Arm"},{"Pants",side.."UpperLeg",side.." Leg"},{"Boots",side.."Foot",side.." Leg"}} do
    local slot,a,b=table.unpack(info); local body=limb(a,b)
    if body and player:GetAttribute("Equipped"..slot) then
     local r6=h.RigType==Enum.HumanoidRigType.R6
     local short=slot~="Pants"
-    local size,offset=fitted(body)
+    local size,offset,rotation=fitted(body)
     local heightFactor=starter and starter:GetAttribute("FormatV2") and 1.05 or .95
-    piece(slot,body,Vector3.new(size.X*1.2,r6 and short and .8 or size.Y*heightFactor,size.Z*1.2),CFrame.new(offset+Vector3.new(0,r6 and short and -.6 or 0,0)))
+    piece(slot,body,Vector3.new(size.X*1.2,r6 and short and .8 or size.Y*heightFactor,size.Z*1.2),rotation*CFrame.new(offset+Vector3.new(0,r6 and short and -.6 or 0,0)))
    end
   end
   if starter and starter:GetAttribute("FormatV2") and player:GetAttribute("EquippedBoots") then

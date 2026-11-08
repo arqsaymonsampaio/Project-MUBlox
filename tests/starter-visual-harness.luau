@@ -27,11 +27,12 @@ C.__index=function(a,key)
   local inverse=frame(zero,vec(a.x.X,a.y.X,a.z.X),vec(a.x.Y,a.y.Y,a.z.Y),vec(a.x.Z,a.y.Z,a.z.Z))
   inverse.p=rotate(inverse,a.p*-1); return inverse
  end end
+ if key=="VectorToWorldSpace" then return function(_,v) return rotate(a,v) end end
  if key=="PointToWorldSpace" then return function(_,v) return a.p+rotate(a,v) end end
  if key=="PointToObjectSpace" then return function(_,v) return rotate(a:Inverse().Rotation,v-a.p) end end
  if key=="ToObjectSpace" then return function(_,b) return a:Inverse()*b end end
 end
-local CFrame={new=function(p) return frame(p) end,fromMatrix=frame}
+local CFrame={new=function(p) return frame(p) end,fromMatrix=frame,identity=frame(zero)}
 -- VALIDATOR_PLACEHOLDER
 local function part(name,kind,pos,size)
  local obj={Name=name,Position=pos or zero,Size=size or vec(1,1,1),CFrame=frame(zero)}
@@ -129,16 +130,17 @@ local refs={}
 refs.LeftUpperArm={name="LeftUpperArm",v2=true,v3=true,bindSize=vec(.44,.75,.44),body=limbWithJoints(vec(2,.6,2),{LeftShoulderRigAttachment=vec(0,.3,0),LeftElbowRigAttachment=vec(0,-.28,0)})}
 refs.LeftLowerArm={name="LeftLowerArm",v2=true,v3=true,bindSize=vec(.44,.38,.44),body=limbWithJoints(vec(2,.38,2),{LeftElbowRigAttachment=vec(0,.19,0),LeftWristRigAttachment=vec(0,-.19,0)})}
 refs.LeftHand={name="LeftHand",v2=true,v3=true,bindSize=vec(.34,.52,.24),body=limbWithJoints(vec(2,.12,2),{LeftWristRigAttachment=vec(.02,.06,.01)})}
+local handRotation
 local scale,shift=starterScale(refs.LeftUpperArm,refs)
 assert(math.abs(scale.Y-1)<.00001 and math.abs(scale.X-1)<.00001)
 assert((vec(0,.205,0)*scale+shift-vec(0,.3,0)).Magnitude<.00001)
 assert((vec(0,-.375,0)*scale+shift-vec(0,-.28,0)).Magnitude<.00001)
-scale,shift=starterScale(refs.LeftHand,refs)
+scale,shift,handRotation=starterScale(refs.LeftHand,refs)
 assert(math.abs(scale.X-scale.Y)<.00001 and math.abs(scale.Z-scale.Y)<.00001)
-assert((vec(0,.26,0)*scale+shift-vec(.02,.06,.01)).Magnitude<.00001)
+assert((handRotation:VectorToWorldSpace(vec(0,.26,0)*scale)+shift-vec(.02,.06,.01)).Magnitude<.00001)
 refs.LeftHand.body=limbWithJoints(vec(.3,.3,.3),{})
-scale,shift=starterScale(refs.LeftHand,refs)
-assert((vec(0,.26,0)*scale+shift-vec(0,.15,0)).Magnitude<.00001)
+scale,shift,handRotation=starterScale(refs.LeftHand,refs)
+assert((handRotation:VectorToWorldSpace(vec(0,.26,0)*scale)+shift-vec(0,.15,0)).Magnitude<.00001)
 -- Wear meshes identify layered templates even if the optional format cube was omitted.
 local t3,c3,d3=fixture()
 for name,slots in starterWear do for _,slot in slots do table.insert(d3,part("Wear_"..slot.."_"..name,"MeshPart")) end end
@@ -146,3 +148,46 @@ assert(#validateStarterTemplate(t3,c3)==29)
 table.insert(d3,part("FormatV3","Part")); local e3=validateStarterTemplate(t3,c3)
 assert(e3[1].v3 and e3[1].v2)
 print("PASS V3: joint-based arm length, uniform hands, wrist alignment, attachment fallback and layered detection")
+
+-- Actual measurements supplied by the user from Studio: joints are diagonal in XYZ.
+for _,side in {"Left","Right"} do
+ local sign=side=="Left" and 1 or -1
+ local shoulder=vec(.232*sign,.339,-.075)
+ local upperElbow=vec(side=="Left" and -.107 or .106,-.239,-.075)
+ local lowerElbow=vec(side=="Left" and .139 or -.140,.295,.001)
+ local wrist=vec(side=="Left" and -.069 or .068,side=="Left" and -.450 or -.451,-.204)
+ local handWrist=vec(.044*sign,side=="Left" and .234 or .233,.124)
+ for _,unit in {1,100,.01} do
+  local measured={}
+  local function entry(suffix,size,bind,joints)
+   local value={name=side..suffix,v2=true,v3=true,bindSize=bind*unit,body=limbWithJoints(size,joints)}
+   measured[value.name]=value; return value
+  end
+  local ua=entry("UpperArm",vec(.942,1.213,.759),vec(.44,.75,.44),{[side.."ShoulderRigAttachment"]=shoulder,[side.."ElbowRigAttachment"]=upperElbow})
+  local la=entry("LowerArm",vec(.812,1.161,.902),vec(.44,.38,.44),{[side.."ElbowRigAttachment"]=lowerElbow,[side.."WristRigAttachment"]=wrist})
+  local hand=entry("Hand",vec(.753,.891,.773),vec(.34,.52,.24),{[side.."WristRigAttachment"]=handWrist})
+  local function verify(e,sourceTop,sourceBottom,targetTop,targetBottom)
+   local scale,offset,rotation=starterScale(e,measured)
+   rotation=rotation or CFrame.identity
+   local function mapped(v) return rotation:VectorToWorldSpace(v*unit*scale)+offset end
+   assert((mapped(sourceTop)-targetTop).Magnitude<.00001,side..e.name.." top joint mismatch")
+   if targetBottom then assert((mapped(sourceBottom)-targetBottom).Magnitude<.00001,side..e.name.." bottom joint mismatch") end
+   assert(rotation.RightVector:Cross(rotation.UpVector):Dot(rotation.LookVector*-1)>.999)
+   return scale
+  end
+  verify(ua,vec(0,.205,0),vec(0,-.375,0),shoulder,upperElbow)
+  verify(la,vec(0,.19,0),vec(0,-.19,0),lowerElbow,wrist)
+  local handScale=verify(hand,vec(0,.26,0),nil,handWrist,nil)
+  assert(math.abs(handScale.X-handScale.Y)<.00001 and math.abs(handScale.Y-handScale.Z)<.00001)
+ end
+end
+print("PASS reported Studio avatar: both ends of both arms align in XYZ at three import scales; hands stay proportional")
+
+-- Armor must use the same rotated coordinate frame as its underlying mesh.
+local armorRotation=frame(zero,vec(0,1,0),vec(-1,0,0),vec(0,0,1))
+local originalGet=visibleParts[1].GetAttribute
+visibleParts[1].GetAttribute=function(obj,key) return key=="FitRotation" and armorRotation or originalGet(obj,key) end
+local orientedSize,orientedOffset,orientedFrame=fitted(torso)
+assert(orientedSize.X==2 and orientedSize.Y==5 and orientedSize.Z==2)
+assert((orientedFrame:PointToWorldSpace(orientedOffset)-vec(.5,0,0)).Magnitude<.00001)
+print("PASS armor fitting uses the same rotated axes and center as the visual meshes")
