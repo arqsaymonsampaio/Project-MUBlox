@@ -83,6 +83,99 @@ end
 local spawn=workspace:FindFirstChildWhichIsA("SpawnLocation",true)
 if not spawn then spawn=Instance.new("SpawnLocation"); spawn.Size=Vector3.new(6,1,6); spawn.Anchored=true; spawn.Neutral=true; spawn.Parent=workspace end
 spawn.CFrame=CFrame.new(0,3,24)
+-- START STARTER VISUAL: optional imported cosmetic skin, original R15 drives movement.
+local starterParts={"Head","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand","LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot"}
+local function dimensionsInFrame(size,rotation)
+ local x,y,z=rotation.RightVector,rotation.UpVector,rotation.LookVector
+ return Vector3.new(math.abs(x.X)*size.X+math.abs(y.X)*size.Y+math.abs(z.X)*size.Z,
+  math.abs(x.Y)*size.X+math.abs(y.Y)*size.Y+math.abs(z.Y)*size.Z,
+  math.abs(x.Z)*size.X+math.abs(y.Z)*size.Y+math.abs(z.Z)*size.Z)
+end
+local function validateStarterTemplate(template,character)
+ if not template or not template:IsA("Model") then return nil,"modelo ausente" end
+ local found={}
+ for _, obj in template:GetDescendants() do
+  if obj:IsA("BasePart") then
+   if found[obj.Name] then return nil,"nomes duplicados: "..obj.Name end
+   found[obj.Name]=obj
+  end
+ end
+ for _, axis in {"AxisOrigin","AxisUp","AxisFront"} do
+  if not found[axis] then return nil,"marcador ausente: "..axis end
+ end
+ local up=found.AxisUp.Position-found.AxisOrigin.Position
+ local front=found.AxisFront.Position-found.AxisOrigin.Position
+ if up.Magnitude<.001 or front.Magnitude<.001 then return nil,"eixos sem escala" end
+ if math.abs(up.Unit:Dot(front.Unit))>.01 then return nil,"eixos deformados" end
+ local right=front.Unit:Cross(up.Unit).Unit
+ local orientation=CFrame.fromMatrix(Vector3.zero,right,up.Unit,right:Cross(up.Unit))
+ local entries={}
+ for _, name in starterParts do
+  local body=character:FindFirstChild(name)
+  local visual,bind=found["Visual_"..name],found["Bind_"..name]
+  if not body or not body:IsA("BasePart") then return nil,"requer personagem R15: "..name end
+  if not visual or not visual:IsA("MeshPart") or not bind then return nil,"malha/marcador ausente: "..name end
+  local frame=CFrame.new(bind.Position)*orientation
+  local bindSize=dimensionsInFrame(bind.Size,frame.Rotation:ToObjectSpace(bind.CFrame.Rotation))
+  if math.min(bindSize.X,bindSize.Y,bindSize.Z)<.001 then return nil,"marcador sem tamanho: "..name end
+  -- Export has orthogonal axes. Reject sheared/individually rotated imports.
+  local rotation=frame.Rotation:ToObjectSpace(visual.CFrame.Rotation)
+  for _, axis in {rotation.RightVector,rotation.UpVector,rotation.LookVector} do
+   if math.max(math.abs(axis.X),math.abs(axis.Y),math.abs(axis.Z))<.999 then return nil,"rotacao individual invalida: "..name end
+  end
+  table.insert(entries,{name=name,body=body,visual=visual,frame=frame,bindSize=bindSize})
+ end
+ return entries
+end
+local function applyStarterVisual(player,character,rebuild)
+ if player.Character~=character then return false end
+ if player:GetAttribute("Class")~="Guerreiro" then return false end
+ local existing=character:FindFirstChild("MUBloxStarterVisual")
+ if not existing or rebuild then
+  local template=game:GetService("ServerStorage"):FindFirstChild("MUBloxWarriorVisual")
+  if not template then return false end -- Existing game remains usable without imported assets.
+  local entries,reason=validateStarterTemplate(template,character)
+  if not entries then warn("MUBlox: visual inicial nao aplicado: "..reason); return false end
+  local visualModel=Instance.new("Model"); visualModel.Name="MUBloxStarterVisual"
+  -- Prepare every mesh before hiding the original avatar.
+  for _, entry in entries do
+   local body=entry.body
+   local ratio=body.Size/entry.bindSize
+   local relative=entry.frame:ToObjectSpace(entry.visual.CFrame)
+   local copy=entry.visual:Clone()
+   for _, child in copy:GetDescendants() do
+    if child:IsA("LuaSourceContainer") or child:IsA("JointInstance") or child:IsA("Constraint") then child:Destroy() end
+   end
+   local localScale=dimensionsInFrame(ratio,relative.Rotation:Inverse())
+   copy.Size=entry.visual.Size*localScale
+   copy.CFrame=body.CFrame*CFrame.new(relative.Position*ratio)*relative.Rotation
+   copy.Anchored=false; copy.Massless=true; copy.CanCollide=false; copy.CanTouch=false; copy.CanQuery=false
+   copy.Parent=visualModel
+   local weld=Instance.new("WeldConstraint"); weld.Part0=body; weld.Part1=copy; weld.Parent=copy
+  end
+  visualModel.Parent=character
+  if existing then existing:Destroy() end
+ end
+ for _, name in starterParts do
+  local part=character:FindFirstChild(name)
+  if part then
+   part.Transparency=1
+   for _, obj in part:GetDescendants() do if obj:IsA("Decal") or obj:IsA("Texture") then obj.Transparency=1 end end
+  end
+ end
+ for _, child in character:GetChildren() do
+  if child:IsA("Accessory") then
+   for _, obj in child:GetDescendants() do if obj:IsA("BasePart") then obj.Transparency=1 end end
+  end
+ end
+ if not player:GetAttribute("StarterVisualInitialized") then
+  player:SetAttribute("StarterVisualInitialized",true)
+  for _, slot in {"Helmet","Armor","Gloves","Pants","Boots","Wings"} do player:SetAttribute("Equipped"..slot,false) end
+ end
+ return true
+end
+-- END STARTER VISUAL
+
 -- Equipamentos visuais: nenhuma peça concede atributos nesta versão.
 local function refreshEquipment(player)
  local c=player.Character; local class=classes[player:GetAttribute("Class")]
@@ -231,6 +324,7 @@ end
 local function applyClass(player,c)
  local h=c:WaitForChild("Humanoid"); if player.Character~=c then return end
  local class=classes[player:GetAttribute("Class")]; if not class then return end
+ applyStarterVisual(player,c)
  h.MaxHealth=class[1]; h.Health=class[1]
  player:SetAttribute("MaxMana",class[2]); player:SetAttribute("Mana",class[2]); refreshEquipment(player)
 end
@@ -238,7 +332,9 @@ local function setup(player)
  for key,value in {Level=1,Experience=0,Mana=0,MaxMana=0,SpinReadyAt=0} do player:SetAttribute(key,value) end
  for _, slot in slots do player:SetAttribute("Equipped"..slot,slot~="Wings") end
  player.CharacterAdded:Connect(function(c) applyClass(player,c) end)
- player.CharacterAppearanceLoaded:Connect(function() refreshEquipment(player) end)
+ player.CharacterAppearanceLoaded:Connect(function(c)
+  applyStarterVisual(player,c,true); refreshEquipment(player)
+ end)
  if player.Character then task.spawn(applyClass,player,player.Character) end
 end
 Players.PlayerAdded:Connect(setup); for _, p in Players:GetPlayers() do setup(p) end

@@ -7,6 +7,10 @@ Protótipo Roblox reconstruído a partir dos códigos da conversa, organizado pa
 Comece pelo [corpo-base sem armadura](art/blender/CORPO_BASE.md): personagem
 cabeçudo com roupa inicial modular, criado pelo script `criar_corpo_base.py`.
 
+O [pacote para primeiro teste no Studio](art/roblox/LEIA-ME.md) contém FBX,
+textura e o servidor atualizado. É um visual experimental que acompanha o R15
+existente; precisa de importação manual e conferência no Studio.
+
 O [gerador da base visual do Guerreiro](art/blender/README.md) cria corpo,
 armadura modular, espada e asas em uma nova cena, preservando a anterior.
 Inclui instruções e uma prévia renderizada. Ainda precisa de adaptação ao R15;

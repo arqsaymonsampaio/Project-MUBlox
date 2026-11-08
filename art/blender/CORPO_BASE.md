@@ -1,5 +1,9 @@
 # Corpo-base do Guerreiro
 
+Já existe um [pacote experimental para testar no Studio](../roblox/LEIA-ME.md),
+com malhas divididas por articulação R15 e textura. A base abaixo continua sendo
+o arquivo-fonte editável; o pacote não equivale a um avatar final com skinning.
+
 Execute **criar_corpo_base.py**, um arquivo independente do gerador da armadura.
 Testado no Blender 4.3.2. Não precisa instalar Python nem baixar bibliotecas.
 
