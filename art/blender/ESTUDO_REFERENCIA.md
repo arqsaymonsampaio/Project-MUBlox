@@ -1,5 +1,8 @@
 # Estudo do guerreiro a partir da referência
 
+Para comparar o modelo parado no mapa do Roblox, use o
+[pacote de importação estática](../roblox/estudo/LEIA-ME.md).
+
 Abra [MUBlox_Estudo_Referencia.blend](MUBlox_Estudo_Referencia.blend) no Blender
 por **Arquivo → Abrir**. No GitHub, use o botão de download do arquivo antes
 de abrir. O arquivo já contém o modelo, os materiais, as luzes e a câmera.
