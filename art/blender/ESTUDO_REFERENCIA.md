@@ -3,6 +3,11 @@
 Para comparar o modelo parado no mapa do Roblox, use o
 [pacote de importação estática](../roblox/estudo/LEIA-ME.md).
 
+Novo: [teste articulado com esqueleto, pesos e demonstração de cotovelos/joelho](../roblox/articulado/LEIA-ME.md).
+O arquivo [MUBlox_Guerreiro_Articulado.blend](MUBlox_Guerreiro_Articulado.blend)
+contém a versão animável experimental. A descrição abaixo continua se referindo
+ao estudo estático original.
+
 Abra [MUBlox_Estudo_Referencia.blend](MUBlox_Estudo_Referencia.blend) no Blender
 por **Arquivo → Abrir**. No GitHub, use o botão de download do arquivo antes
 de abrir. O arquivo já contém o modelo, os materiais, as luzes e a câmera.

@@ -77,7 +77,8 @@ bpy.ops.object.select_all(action='DESELECT')
 for obj in objects:
     obj.select_set(True)
 bpy.context.view_layer.objects.active = objects[0]
-bpy.ops.export_scene.fbx(filepath=str(out / 'MUBlox_Estudo_Mapa.fbx'), use_selection=True,
-    object_types={'MESH'}, axis_forward='-Z', axis_up='Y', path_mode='COPY',
-    embed_textures=True, bake_anim=False, add_leaf_bones=False)
-print('PASS static export: seven colored meshes; 5.5-unit height; no scenery or rig.')
+if globals().get('EXPORT_STATIC', True):
+    bpy.ops.export_scene.fbx(filepath=str(out / 'MUBlox_Estudo_Mapa.fbx'), use_selection=True,
+        object_types={'MESH'}, axis_forward='-Z', axis_up='Y', path_mode='COPY',
+        embed_textures=True, bake_anim=False, add_leaf_bones=False)
+    print('PASS static export: seven colored meshes; 5.5-unit height; no scenery or rig.')
