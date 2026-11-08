@@ -1,6 +1,7 @@
 -- Minimal rigid vector/frame math to exercise the actual import validator.
 local V={}
 local function vec(x,y,z) return setmetatable({X=x,Y=y,Z=z},V) end
+V.__unm=function(a) return vec(-a.X,-a.Y,-a.Z) end
 V.__add=function(a,b) return vec(a.X+b.X,a.Y+b.Y,a.Z+b.Z) end
 V.__sub=function(a,b) return vec(a.X-b.X,a.Y-b.Y,a.Z-b.Z) end
 V.__mul=function(a,b) if type(b)=="number" then return vec(a.X*b,a.Y*b,a.Z*b) end return vec(a.X*b.X,a.Y*b.Y,a.Z*b.Z) end
@@ -26,6 +27,8 @@ C.__index=function(a,key)
   local inverse=frame(zero,vec(a.x.X,a.y.X,a.z.X),vec(a.x.Y,a.y.Y,a.z.Y),vec(a.x.Z,a.y.Z,a.z.Z))
   inverse.p=rotate(inverse,a.p*-1); return inverse
  end end
+ if key=="PointToWorldSpace" then return function(_,v) return a.p+rotate(a,v) end end
+ if key=="PointToObjectSpace" then return function(_,v) return rotate(a:Inverse().Rotation,v-a.p) end end
  if key=="ToObjectSpace" then return function(_,b) return a:Inverse()*b end end
 end
 local CFrame={new=function(p) return frame(p) end,fromMatrix=frame}
@@ -59,3 +62,57 @@ template,char,desc=fixture(); desc[4].CFrame=frame(zero,vec(.707,0,.707),vec(0,1
 local dims=dimensionsInFrame(vec(2,3,4),frame(zero,vec(0,1,0),vec(0,0,1),vec(1,0,0)))
 assert(dims.X==4 and dims.Y==2 and dims.Z==3)
 print("PASS starter template: valid R15, missing model/mesh/limb, duplicate names, degenerate/skew axes, rotated part and axis-swapped sizing")
+
+-- V2 contract: all expected clothes are present, separately mapped to equipment slots.
+local template2,char2,desc2=fixture()
+table.insert(desc2,part("FormatV2","Part"))
+for name,slots in starterWear do
+ for _,slot in slots do table.insert(desc2,part("Wear_"..slot.."_"..name,"MeshPart")) end
+end
+local entries=validateStarterTemplate(template2,char2)
+assert(entries and #entries==29)
+local layers={}
+for _,entry in entries do
+ local attrs={HideSlot=entry.slot,BaseTransparency=0}
+ local layer={Transparency=0,IsA=function(_,k) return k=="BasePart" end,GetAttribute=function(_,k) return attrs[k] end}
+ table.insert(layers,layer)
+end
+local attrs={}
+local p={GetAttribute=function(_,k) return attrs[k] end}
+local visual={GetChildren=function() return layers end}
+-- Equip each slot independently; wings must not hide any starter clothing.
+for _,slot in {"Helmet","Armor","Gloves","Pants","Boots","Wings"} do
+ attrs["Equipped"..slot]=true
+ syncStarterVisibility(p,visual)
+ for i,layer in layers do assert(layer.Transparency==(entries[i].slot==slot and 1 or 0)) end
+ attrs["Equipped"..slot]=false
+ syncStarterVisibility(p,visual)
+ for _,layer in layers do assert(layer.Transparency==0) end
+end
+-- Full set hides every clothing layer, never the underlying body/face.
+for _,slot in {"Helmet","Armor","Gloves","Pants","Boots"} do attrs["Equipped"..slot]=true end
+syncStarterVisibility(p,visual)
+for i,layer in layers do assert(layer.Transparency==(entries[i].slot and 1 or 0)) end
+-- Imported translucency must be restored, not forced opaque.
+local translucent={Transparency=1,IsA=function() return true end,GetAttribute=function(_,k) return k=="BaseTransparency" and .25 or nil end}
+syncStarterVisibility(p,{GetChildren=function() return {translucent} end}); assert(translucent.Transparency==.25)
+table.remove(desc2); assert(validateStarterTemplate(template2,char2)==nil)
+print("PASS V2: required layers, per-slot equip/unequip, full set, wings independence and transparency restoration")
+
+-- Exercise the real equipment bounds helper using offset/rotated visual meshes.
+local starter
+-- BOUNDS_PLACEHOLDER
+local torso={Name="UpperTorso",Size=vec(2,2,1),CFrame=frame(zero)}
+local size,offset=fitted(torso); assert(size==torso.Size and offset==zero)
+local function visualPiece(name,size,cf)
+ return {Size=size,CFrame=cf,Transparency=1,IsA=function() return true end,
+  GetAttribute=function(_,key) return key=="BodyPart" and name or nil end}
+end
+local visibleParts={visualPiece("UpperTorso",vec(2,4,2),frame(vec(1,0,0))),visualPiece("UpperTorso",vec(2,2,2),frame(vec(-1,0,0))),visualPiece("Head",vec(20,20,20),frame(vec(100,0,0)))}
+starter={GetAttribute=function() return true end,GetChildren=function() return visibleParts end}
+size,offset=fitted(torso)
+assert(size.X==4 and size.Y==4 and size.Z==2 and offset.Magnitude==0)
+visibleParts[1].CFrame=frame(vec(1,0,0),vec(0,1,0),vec(-1,0,0),vec(0,0,1))
+size,offset=fitted(torso)
+assert(size.X==5 and size.Y==2 and size.Z==2 and offset.X==.5)
+print("PASS equipment bounds: legacy fallback, offsets, rotations, hidden clothing and exclusion of other limbs")

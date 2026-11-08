@@ -20,9 +20,9 @@ profiles={
 }
 for side,s in [('Left',1),('Right',-1)]:
     for part,center,size in [
-      ('UpperArm',(s*.75,0,2.62),(.42,.44,.62)),
-      ('LowerArm',(s*1.02,0,2.12),(.38,.40,.42)),
-      ('Hand',(s*1.15,0,1.73),(.46,.32,.38)),
+      ('UpperArm',(s*.75,0,2.62),(.44,.44,.62)),
+      ('LowerArm',(s*1.02,0,2.12),(.44,.44,.42)),
+      ('Hand',(s*1.15,0,1.73),(.44,.44,.38)),
       ('UpperLeg',(s*.29,0,1.55),(.52,.55,.58)),
       ('LowerLeg',(s*.32,0,.96),(.48,.50,.60)),
       ('Foot',(s*.32,-.15,.43),(.56,.85,.46)),
@@ -48,19 +48,24 @@ texmat.node_tree.links.new(node.outputs['Color'],texmat.node_tree.nodes['Princip
 texmat.node_tree.nodes['Principled BSDF'].inputs['Roughness'].default_value=.65
 
 # Collect evaluated, capped cuts. Plane normal points toward the discarded side.
-buckets={name:[] for name in profiles}
+buckets={}
+current_layer='Body'
 def clip(bm,point,normal):
+    first_face=next(iter(bm.faces),None)
+    fill_material=first_face.material_index if first_face else 0
     result=bmesh.ops.bisect_plane(bm,geom=list(bm.verts)+list(bm.edges)+list(bm.faces),dist=.00001,
         plane_co=Vector(point),plane_no=Vector(normal),clear_outer=True,clear_inner=False)
     boundary=[e for e in result['geom_cut'] if isinstance(e,bmesh.types.BMEdge) and e.is_boundary]
-    if boundary: bmesh.ops.holes_fill(bm,edges=boundary,sides=0)
+    if boundary:
+        filled=bmesh.ops.holes_fill(bm,edges=boundary,sides=0)
+        for face in filled['faces']: face.material_index=fill_material
 
 def put(source,name,planes):
     bm=source.copy()
     for point,normal in planes: clip(bm,point,normal)
     if bm.faces:
         bmesh.ops.recalc_face_normals(bm,faces=list(bm.faces))
-        buckets[name].append(bm)
+        buckets.setdefault((name,current_layer),[]).append(bm)
     else: bm.free()
 
 def upper(z): return ((0,0,z),(0,0,-1))
@@ -76,10 +81,14 @@ for obj in list(scene.objects):
         m=obj.data.materials[min(f.material_index,len(obj.data.materials)-1)]
         f.material_index=materials.index(m)
     slot=obj.parent.get('equipment_slot')
+    current_layer={'Hair':'Helmet','StarterShirt':'Armor','StarterGloves':'Gloves','StarterBoots':'Boots','StarterPants':'Pants'}.get(slot,'Body')
     if slot in {'Face','Hair'} or obj.name.startswith('Cabeca'):
         put(bm,'Head',[])
     elif slot=='StarterShirt':
-        put(bm,'UpperTorso',[upper(2.20)]); put(bm,'LowerTorso',[lower(2.20)])
+        if obj.name.startswith(('Cinto','Fivela','Acabamento_Frontal')):
+            put(bm,'LowerTorso',[])
+        else:
+            put(bm,'UpperTorso',[upper(2.20)]); put(bm,'LowerTorso',[lower(2.20)])
     elif slot=='StarterGloves':
         for side,s in [('Left',1),('Right',-1)]: put(bm,side+'Hand',[side_clip(s)])
     elif slot=='StarterBoots':
@@ -103,10 +112,33 @@ for obj in list(scene.objects):
                 put(bm,side+suffix,core+[side_clip(s)]+planes)
     bm.free(); ev.to_mesh_clear()
 
-export=bpy.data.collections.new('Export_R15_Visual'); scene.collection.children.link(export)
+# Round joints overlap the adjacent rigid segments, softening guillotine cuts.
+for side,sign in [('Left',1),('Right',-1)]:
+    for suffix,position,radii,layer,mat in [
+        ('LowerArm',(sign*.91,0,2.32),(.18,.19,.19),'Body',ns['skin']),
+        ('Hand',(sign*1.13,0,1.94),(.155,.15,.14),'Body',ns['skin']),
+        ('LowerLeg',(sign*.30,0,1.26),(.195,.215,.18),'Body',ns['skin']),
+        ('LowerLeg',(sign*.30,0,1.26),(.218,.238,.20),'Pants',ns['pants_mat']),
+    ]:
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=20,ring_count=12,location=position)
+        obj=bpy.context.object; obj.scale=radii
+        bpy.context.view_layer.update()
+        bm=bmesh.new(); bm.from_mesh(obj.data); bm.transform(obj.matrix_world)
+        for face in bm.faces: face.material_index=materials.index(mat)
+        current_layer=layer; put(bm,side+suffix,[]); bm.free()
+        bpy.data.objects.remove(obj,do_unlink=True)
+
+def arm_center(z):
+    points=[(1.40,1.15),(1.94,1.13),(2.32,.91),(2.90,.59),(3.3,.59)]
+    for (a,x),(b,y) in zip(points,points[1:]):
+        if z<=b:
+            t=max(0,min(1,(z-a)/(b-a)))
+            return x+(y-x)*t
+    return points[-1][1]
+
+export=bpy.data.collections.new('Export_R15_Visual_V2'); scene.collection.children.link(export)
 objects=[]
-for name,parts in buckets.items():
-    assert parts,name
+for (name,layer),parts in buckets.items():
     verts=[]; faces=[]; palette=[]
     for bm in parts:
         bm.verts.ensure_lookup_table(); bm.verts.index_update()
@@ -114,13 +146,18 @@ for name,parts in buckets.items():
         faces += [tuple(offset+v.index for v in f.verts) for f in bm.faces]
         palette += [f.material_index for f in bm.faces]
         bm.free()
-    data=bpy.data.meshes.new('Visual_'+name); data.from_pydata(verts,[],faces); data.update()
-    obj=bpy.data.objects.new('Visual_'+name,data); export.objects.link(obj); data.materials.append(texmat)
+    # Remove the A-pose's lateral slope before attaching to upright R15 limbs.
+    if name.endswith(('UpperArm','LowerArm','Hand')):
+        sign=1 if name.startswith('Left') else -1
+        center=abs(profiles[name][0][0])
+        verts=[(x-sign*(arm_center(z)-center),y,z) for x,y,z in verts]
+    mesh_name='Visual_'+name if layer=='Body' else 'Wear_'+layer+'_'+name
+    data=bpy.data.meshes.new(mesh_name); data.from_pydata(verts,[],faces); data.update()
+    obj=bpy.data.objects.new(mesh_name,data); export.objects.link(obj); data.materials.append(texmat)
     uv=data.uv_layers.new(name='UVMap')
     for poly,idx in zip(data.polygons,palette):
         poly.use_smooth=True
         for loop in poly.loop_indices: uv.data[loop].uv=((idx%4+.5)/4,(idx//4+.5)/4)
-    # The remeshed organic body is for a prototype; simplify large sections.
     if len(data.polygons)>3000:
         bpy.context.view_layer.objects.active=obj
         mod=obj.modifiers.new('Simplificar','DECIMATE'); mod.ratio=min(1,2500/len(data.polygons))
@@ -129,14 +166,14 @@ for name,parts in buckets.items():
     bpy.context.view_layer.objects.active=obj; bpy.ops.object.modifier_apply(modifier=mod.name)
     assert len(obj.data.polygons)<=10000,(name,len(obj.data.polygons))
     objects.append(obj)
-    center,size=profiles[name]
+for name,(center,size) in profiles.items():
+    assert (name,'Body') in buckets,name
     bpy.ops.mesh.primitive_cube_add(size=1,location=center)
     marker=bpy.context.object; marker.name='Bind_'+name; marker.scale=size
     bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
     for col in list(marker.users_collection): col.objects.unlink(marker)
     export.objects.link(marker); objects.append(marker)
-# Mark orientation explicitly to handle FBX axis/unit conversions on import.
-for name,pos in [('AxisOrigin',(0,0,0)),('AxisUp',(0,0,1)),('AxisFront',(0,-1,0))]:
+for name,pos in [('AxisOrigin',(0,0,0)),('AxisUp',(0,0,1)),('AxisFront',(0,-1,0)),('FormatV2',(0,1,0))]:
     bpy.ops.mesh.primitive_cube_add(size=.05,location=pos); obj=bpy.context.object; obj.name=name
     for col in list(obj.users_collection): col.objects.unlink(obj)
     export.objects.link(obj); objects.append(obj)
@@ -146,6 +183,6 @@ bpy.context.view_layer.objects.active=objects[0]
 bpy.ops.export_scene.fbx(filepath=str(out/'Guerreiro_Visual_R15.fbx'),use_selection=True,
     object_types={'MESH'},use_mesh_modifiers=True,add_leaf_bones=False,bake_anim=False,
     axis_forward='-Z',axis_up='Y',path_mode='COPY',embed_textures=True)
-print('PASS export:',len(objects),'objects; 15 visual meshes with UV atlas and binding markers')
+print('PASS V2 export:',len(objects),'objects; independent clothing and binding markers')
 for obj in objects:
-    if obj.name.startswith('Visual_'): print(obj.name,len(obj.data.polygons),'triangles')
+    if obj.name.startswith(('Visual_','Wear_')): print(obj.name,len(obj.data.polygons),'triangles')

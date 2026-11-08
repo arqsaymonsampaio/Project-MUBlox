@@ -180,10 +180,10 @@ for s in [-1,1]: parts.append(ball('Orelha',(s*.71,.015,3.66),(.15,.13,.24),skin
 merge_skin(parts,'Cabeca',cols['body'],roots['body'])
 for s in [-1,1]:
     ball('Interior_Orelha',(s*.75,-.103,3.66),(.075,.026,.13),inner,'face')
-    eye=ball('Olho',(s*.275,-.513,3.87),(.21,.092,.25),white,'face')
-    ball('Iris',(s*.275,-.592,3.86),(.115,.038,.16),iris,'face')
-    ball('Pupila',(s*.275,-.623,3.86),(.065,.018,.105),black,'face')
-    ball('Reflexo',(s*.275-.035,-.641,3.935),(.03,.009,.04),white,'face')
+    eye=ball('Olho',(s*.275,-.500,3.87),(.20,.065,.235),white,'face')
+    ball('Iris',(s*.275,-.553,3.86),(.11,.022,.15),iris,'face')
+    ball('Pupila',(s*.275,-.572,3.86),(.062,.012,.10),black,'face')
+    ball('Reflexo',(s*.275-.035,-.583,3.925),(.028,.006,.035),white,'face')
     line('Sobrancelha',[(s*.11,-.54,4.16),(s*.28,-.55,4.20),(s*.45,-.48,4.15)],.045,hair,'face')
 line('Sorriso',[(-.22,-.47,3.47),(0,-.514,3.425),(.22,-.47,3.47)],.014,inner,'face')
 # Hair cap follows the scalp. Front rim leaves eyes and brows unobstructed.

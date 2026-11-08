@@ -1,4 +1,4 @@
-# Guerreiro inicial — primeiro teste no Roblox Studio
+# Guerreiro inicial — atualização V2
 
 Este pacote instala um **visual experimental R15** do Guerreiro sobre o personagem
 que já movimenta no MUBlox. A malha vem do protótipo Blender, com roupa inicial,
@@ -6,9 +6,22 @@ rosto e cabelo. É um teste jogável de integração; ainda precisa de conferên
 Studio para avaliar encaixes, juntas, escala e cores. Não é um avatar pronto para
 publicar no catálogo Roblox.
 
+## O que mudou nesta versão
+
+- Cinto e fivela inteiros na cintura, sem corte entre dois segmentos.
+- 15 regiões do corpo e 14 malhas de roupa/cabelo independentes.
+- Equipar uma peça esconde a camada inicial correspondente; retirar restaura.
+  Asas não escondem roupa. O elmo esconde o cabelo e mantém o rosto por baixo.
+- Eixos dos braços alinhados, escala transversal compartilhada entre segmentos
+  e volumes arredondados nas junções para reduzir degraus e aberturas.
+- Olhos um pouco mais recuados, conforme o problema visível na foto de perfil.
+- Set provisório dimensionado pelas malhas novas, com cintura e grevas.
+
 ## Instalação
 
-1. Salve seu lugar atual e pare o **Play**.
+1. Salve seu lugar atual e pare o **Play**. Se já importou a versão anterior,
+   renomeie o modelo antigo em ServerStorage para `MUBloxWarriorVisual_Antigo`.
+   Mantenha-o como cópia de segurança até conferir o resultado.
 2. Substitua `src\server\MUBlox.server.luau` pelo arquivo deste pacote na pasta
    que o Rojo está servindo. Não cole o código na Barra de Comandos. O script
    do cliente e `default.project.json` continuam os mesmos.
@@ -22,8 +35,9 @@ publicar no catálogo Roblox.
    importação mostrar tudo branco, confira a textura antes de continuar.
 5. No **Explorador**, renomeie o modelo importado inteiro para exatamente
    **MUBloxWarriorVisual** e arraste-o de Workspace para **ServerStorage**.
-   Leve o modelo completo: 15 malhas `Visual_*`, 15 blocos `Bind_*` e os
-   marcadores `AxisOrigin`, `AxisUp`, `AxisFront`. Os blocos são referências;
+   Leve o modelo completo: 15 malhas `Visual_*`, 14 malhas `Wear_*`,
+   15 blocos `Bind_*` e os marcadores `AxisOrigin`, `AxisUp`, `AxisFront`,
+   `FormatV2` (48 objetos). Os blocos são referências;
    não fazem parte do visual que o script coloca no jogador. Não os apague.
 6. Com o Rojo conectado, inicie **Play** e escolha **Guerreiro**.
    A roupa inicial será aplicada e as peças do set começarão desequipadas
@@ -34,6 +48,10 @@ publicar no catálogo Roblox.
 8. Pare o Play e salve o lugar como `.rbxl`. Esse arquivo guarda a referência
    ao modelo importado. O GitHub e o Rojo, sozinhos, não guardam os IDs dos
    assets que você acabou de importar no Studio.
+
+**Atualize o servidor e reimporte o FBX.** Trocar somente o código não corrige
+as malhas da versão anterior. Deve existir apenas um modelo com o nome exato
+`MUBloxWarriorVisual` dentro de ServerStorage. Não misture partes das versões.
 
 Não precisa tornar o jogo público para testar no Studio. A importação pode
 solicitar o envio das malhas/textura para sua conta Roblox.
@@ -57,27 +75,31 @@ sendo os do jogo. O corpo original e seus acessórios ficam invisíveis quando
 há um modelo completo válido. Os marcadores permitem compensar a conversão de
 eixos e unidades do FBX. A aparência é reconstruída após carregar o avatar.
 
-As roupas e o corpo continuam separados no arquivo-fonte Blender. Neste FBX,
-as superfícies foram agrupadas por região R15 para acompanhar o movimento;
+As roupas e o corpo estão separados no Blender e no FBX V2. As malhas são
+agrupadas por região R15 e por equipamento para acompanhar o movimento;
 não se trata de uma malha orgânica com pesos de deformação. Podem aparecer
 emendas nos joelhos/cotovelos, especialmente com poses fortes. As proporções
 finais também dependem das dimensões do avatar R15 do jogador. Precisaremos
 avaliar isso no Studio antes de fixar um corpo padrão para todos os jogadores.
 
-Os sets geométricos antigos continuam provisórios e ainda não foram ajustados
-para este novo corpo. O foco deste pacote é o personagem inicial. Rosto, cabelo,
+Os sets geométricos antigos continuam provisórios. O encaixe básico agora
+considera as dimensões das malhas novas, mas ainda não equivale à armadura
+modelada no Blender e precisa de revisão visual com poses diferentes. Rosto, cabelo,
 mãos, costuras e acabamento ainda são de protótipo; a renderização conceitual
 não é uma promessa de acabamento idêntico no jogo.
 
 ## Validação realizada
 
-- Exportação real de FBX com 15 malhas, marcadores e textura atlas de 128 × 128.
+- Exportação real de FBX com 29 malhas visuais, marcadores e atlas de 128 × 128.
 - Reimportação real no Blender: UVs, textura, nomes, limites espaciais dos
   segmentos e menos de 10 mil triângulos em cada malha.
 - Validação automatizada do contrato de importação: modelos incompletos,
   nomes duplicados, rig incompatível e eixos inválidos são rejeitados.
+- Testes de camadas V2 obrigatórias, equipar/retirar cada slot, set completo,
+  restauração de transparência e independência das asas.
 - Testes existentes de combate e IA, compilação Luau e build Rojo.
-- Ainda **não testado no Roblox Studio** neste ambiente.
+- A integração da V1 foi confirmada pelo usuário no Studio. Os ajustes da
+  **V2 ainda precisam de conferência visual no Studio**, especialmente nas juntas.
 
 Fontes: `art/blender/criar_corpo_base.py` e
 `art/blender/exportar_corpo_roblox.py` no repositório.

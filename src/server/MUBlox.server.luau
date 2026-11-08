@@ -91,6 +91,22 @@ local function dimensionsInFrame(size,rotation)
   math.abs(x.Y)*size.X+math.abs(y.Y)*size.Y+math.abs(z.Y)*size.Z,
   math.abs(x.Z)*size.X+math.abs(y.Z)*size.Y+math.abs(z.Z)*size.Z)
 end
+local starterWear={
+ Head={"Helmet"},UpperTorso={"Armor"},LowerTorso={"Armor","Pants"},
+ LeftHand={"Gloves"},RightHand={"Gloves"},
+ LeftUpperLeg={"Pants"},RightUpperLeg={"Pants"},
+ LeftLowerLeg={"Pants","Boots"},RightLowerLeg={"Pants","Boots"},
+ LeftFoot={"Boots"},RightFoot={"Boots"},
+}
+local function syncStarterVisibility(player,visualModel)
+ if not visualModel then return end
+ for _, obj in visualModel:GetChildren() do
+  if obj:IsA("BasePart") then
+   local slot=obj:GetAttribute("HideSlot")
+   obj.Transparency=slot and player:GetAttribute("Equipped"..slot) and 1 or (obj:GetAttribute("BaseTransparency") or 0)
+  end
+ end
+end
 local function validateStarterTemplate(template,character)
  if not template or not template:IsA("Model") then return nil,"modelo ausente" end
  local found={}
@@ -118,12 +134,21 @@ local function validateStarterTemplate(template,character)
   local frame=CFrame.new(bind.Position)*orientation
   local bindSize=dimensionsInFrame(bind.Size,frame.Rotation:ToObjectSpace(bind.CFrame.Rotation))
   if math.min(bindSize.X,bindSize.Y,bindSize.Z)<.001 then return nil,"marcador sem tamanho: "..name end
-  -- Export has orthogonal axes. Reject sheared/individually rotated imports.
-  local rotation=frame.Rotation:ToObjectSpace(visual.CFrame.Rotation)
-  for _, axis in {rotation.RightVector,rotation.UpVector,rotation.LookVector} do
-   if math.max(math.abs(axis.X),math.abs(axis.Y),math.abs(axis.Z))<.999 then return nil,"rotacao individual invalida: "..name end
+  local visuals={{part=visual}}
+  if found.FormatV2 then
+   for _, slot in starterWear[name] or {} do
+    local wear=found["Wear_"..slot.."_"..name]
+    if not wear or not wear:IsA("MeshPart") then return nil,"camada V2 ausente: "..slot.."_"..name end
+    table.insert(visuals,{part=wear,slot=slot})
+   end
   end
-  table.insert(entries,{name=name,body=body,visual=visual,frame=frame,bindSize=bindSize})
+  for _, layer in visuals do
+   local rotation=frame.Rotation:ToObjectSpace(layer.part.CFrame.Rotation)
+   for _, axis in {rotation.RightVector,rotation.UpVector,rotation.LookVector} do
+    if math.max(math.abs(axis.X),math.abs(axis.Y),math.abs(axis.Z))<.999 then return nil,"rotacao individual invalida: "..name end
+   end
+   table.insert(entries,{name=name,body=body,visual=layer.part,frame=frame,bindSize=bindSize,slot=layer.slot,v2=found.FormatV2~=nil})
+  end
  end
  return entries
 end
@@ -137,10 +162,24 @@ local function applyStarterVisual(player,character,rebuild)
   local entries,reason=validateStarterTemplate(template,character)
   if not entries then warn("MUBlox: visual inicial nao aplicado: "..reason); return false end
   local visualModel=Instance.new("Model"); visualModel.Name="MUBloxStarterVisual"
+  local references={}
+  for _, entry in entries do references[entry.name]=entry end
+  visualModel:SetAttribute("FormatV2",entries[1].v2)
   -- Prepare every mesh before hiding the original avatar.
   for _, entry in entries do
    local body=entry.body
    local ratio=body.Size/entry.bindSize
+   if entry.v2 then
+    local side=string.sub(entry.name,1,4)=="Left" and "Left" or "Right"
+    local referenceName
+    if string.find(entry.name,"Arm") or string.find(entry.name,"Hand") then referenceName=side.."UpperArm"
+    elseif string.find(entry.name,"Leg") or string.find(entry.name,"Foot") then referenceName=side.."UpperLeg" end
+    local reference=referenceName and references[referenceName]
+    if reference then
+     local shared=reference.body.Size/reference.bindSize
+     ratio=Vector3.new(shared.X,ratio.Y,shared.Z)
+    end
+   end
    local relative=entry.frame:ToObjectSpace(entry.visual.CFrame)
    local copy=entry.visual:Clone()
    for _, child in copy:GetDescendants() do
@@ -150,6 +189,9 @@ local function applyStarterVisual(player,character,rebuild)
    copy.Size=entry.visual.Size*localScale
    copy.CFrame=body.CFrame*CFrame.new(relative.Position*ratio)*relative.Rotation
    copy.Anchored=false; copy.Massless=true; copy.CanCollide=false; copy.CanTouch=false; copy.CanQuery=false
+   copy:SetAttribute("BodyPart",entry.name)
+   copy:SetAttribute("HideSlot",entry.slot)
+   copy:SetAttribute("BaseTransparency",entry.visual.Transparency)
    copy.Parent=visualModel
    local weld=Instance.new("WeldConstraint"); weld.Part0=body; weld.Part1=copy; weld.Parent=copy
   end
@@ -186,6 +228,26 @@ local function refreshEquipment(player)
  h.HipHeight=base+(player:GetAttribute("EquippedWings") and .85 or 0)
  local old=c:FindFirstChild("MUBloxArmor"); if old then old:Destroy() end
  local armor=model("MUBloxArmor",c)
+ local starter=c:FindFirstChild("MUBloxStarterVisual")
+ syncStarterVisibility(player,starter)
+ local function fitted(body)
+  if not starter or not starter:GetAttribute("FormatV2") then return body.Size,Vector3.zero end
+  local low=Vector3.new(math.huge,math.huge,math.huge)
+  local high=-low
+  local found=false
+  for _, visual in starter:GetChildren() do
+   if visual:IsA("BasePart") and visual:GetAttribute("BodyPart")==body.Name then
+    for _, x in {-1,1} do for _, y in {-1,1} do for _, z in {-1,1} do
+     local corner=body.CFrame:PointToObjectSpace(visual.CFrame:PointToWorldSpace(visual.Size*Vector3.new(x,y,z)*.5))
+     low=Vector3.new(math.min(low.X,corner.X),math.min(low.Y,corner.Y),math.min(low.Z,corner.Z))
+     high=Vector3.new(math.max(high.X,corner.X),math.max(high.Y,corner.Y),math.max(high.Z,corner.Z))
+     found=true
+    end end end
+   end
+  end
+  if not found then return body.Size,Vector3.zero end
+  return high-low,(high+low)*.5
+ end
  local function limb(a,b) return c:FindFirstChild(a) or c:FindFirstChild(b) end
  local torso=limb("UpperTorso","Torso")
  local function piece(name,body,size,offset,color,shape)
@@ -196,12 +258,26 @@ local function refreshEquipment(player)
  end
  local head=c:FindFirstChild("Head")
  if player:GetAttribute("EquippedHelmet") and head then
-  piece("Helmet",head,head.Size*Vector3.new(1.2,1.4,1.35),CFrame.new(0,.1,0))
-  piece("Visor",head,Vector3.new(head.Size.X*.7,.28,.12),CFrame.new(0,.05,-head.Size.Z*.68),Color3.fromRGB(20,20,25),Enum.PartType.Block)
+  if starter and starter:GetAttribute("FormatV2") then
+   local size,offset=fitted(head)
+   piece("Helmet",head,size*Vector3.new(1.12,1.12,1.14),CFrame.new(offset))
+   piece("Visor",head,Vector3.new(size.X*.7,size.Y*.18,.12),CFrame.new(offset+Vector3.new(0,0,-size.Z*.57)),Color3.fromRGB(20,20,25),Enum.PartType.Block)
+  else
+   piece("Helmet",head,head.Size*Vector3.new(1.2,1.4,1.35),CFrame.new(0,.1,0))
+   piece("Visor",head,Vector3.new(head.Size.X*.7,.28,.12),CFrame.new(0,.05,-head.Size.Z*.68),Color3.fromRGB(20,20,25),Enum.PartType.Block)
+  end
  end
  if player:GetAttribute("EquippedArmor") and torso then
-  piece("Armor",torso,torso.Size*Vector3.new(1.15,1.08,1.3),CFrame.new())
-  piece("Emblema",torso,Vector3.new(.8,.8,.18),CFrame.new(0,0,-torso.Size.Z*.66)*CFrame.Angles(0,0,math.rad(45)),gold,Enum.PartType.Block)
+  local size,offset=fitted(torso)
+  piece("Armor",torso,size*Vector3.new(1.15,1.08,1.3),CFrame.new(offset))
+  piece("Emblema",torso,Vector3.new(.8,.8,.18),CFrame.new(offset+Vector3.new(0,0,-size.Z*.66))*CFrame.Angles(0,0,math.rad(45)),gold,Enum.PartType.Block)
+ end
+ if starter and starter:GetAttribute("FormatV2") then
+  local pelvis=c:FindFirstChild("LowerTorso")
+  if pelvis and (player:GetAttribute("EquippedArmor") or player:GetAttribute("EquippedPants")) then
+   local size,offset=fitted(pelvis)
+   piece("CinturaSet",pelvis,size*Vector3.new(1.12,1.05,1.15),CFrame.new(offset))
+  end
  end
  for _, side in {"Left","Right"} do
   local arm=limb(side.."UpperArm",side.." Arm")
@@ -211,7 +287,16 @@ local function refreshEquipment(player)
    if body and player:GetAttribute("Equipped"..slot) then
     local r6=h.RigType==Enum.HumanoidRigType.R6
     local short=slot~="Pants"
-    piece(slot,body,Vector3.new(body.Size.X*1.2,r6 and short and .8 or body.Size.Y*.95,body.Size.Z*1.2),CFrame.new(0,r6 and short and -.6 or 0,0))
+    local size,offset=fitted(body)
+    local heightFactor=starter and starter:GetAttribute("FormatV2") and 1.05 or .95
+    piece(slot,body,Vector3.new(size.X*1.2,r6 and short and .8 or size.Y*heightFactor,size.Z*1.2),CFrame.new(offset+Vector3.new(0,r6 and short and -.6 or 0,0)))
+   end
+  end
+  if starter and starter:GetAttribute("FormatV2") and player:GetAttribute("EquippedBoots") then
+   local shin=c:FindFirstChild(side.."LowerLeg")
+   if shin then
+    local size,offset=fitted(shin)
+    piece("GrevaSet",shin,size*Vector3.new(1.12,1.04,1.15),CFrame.new(offset))
    end
   end
  end
