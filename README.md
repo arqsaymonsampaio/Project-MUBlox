@@ -4,6 +4,9 @@ Protótipo Roblox reconstruído a partir dos códigos da conversa, organizado pa
 
 ## Modelagem no Blender
 
+Comece pelo [corpo-base sem armadura](art/blender/CORPO_BASE.md): personagem
+cabeçudo com roupa inicial modular, criado pelo script `criar_corpo_base.py`.
+
 O [gerador da base visual do Guerreiro](art/blender/README.md) cria corpo,
 armadura modular, espada e asas em uma nova cena, preservando a anterior.
 Inclui instruções e uma prévia renderizada. Ainda precisa de adaptação ao R15;

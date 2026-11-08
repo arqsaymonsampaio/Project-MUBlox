@@ -1,5 +1,8 @@
 # Guerreiro — base visual no Blender
 
+**Para o personagem sem armadura, use o novo [corpo-base](CORPO_BASE.md).**
+Este documento abaixo descreve o estudo anterior do set vermelho.
+
 Este gerador cria um estudo tridimensional do Guerreiro Rubro: proporções
 compactas, corpo arredondado, armadura vermelha e dourada, elmo com chifres,
 espada e asas de morcego. A prévia foi renderizada a partir do próprio modelo,
