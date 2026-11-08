@@ -7,6 +7,13 @@ Selecione a cena `MUBlox_Estudo_Referencia`, caso outra cena esteja ativa.
 
 ![Render do modelo real](../previews/estudo_referencia.png)
 
+Atualização dos cotovelos: braço e antebraço agora têm perfis próprios,
+estreitamento na região do cotovelo e uma leve flexão em repouso. As mãos e
+luvas acompanham o novo posicionamento dos punhos. Esta correção é geométrica;
+o esqueleto e os pesos de animação ainda não foram criados.
+
+![Vista oblíqua para conferir os cotovelos](../previews/estudo_cotovelo_lado.png)
+
 Este estudo aumenta a cabeça, encurta as pernas e substitui os volumes
 empilhados dos braços por uma superfície mais contínua, unida aos ombros e ao
 tórax. Mantém roupa inicial e cabelo separados. Ainda não reproduz fielmente

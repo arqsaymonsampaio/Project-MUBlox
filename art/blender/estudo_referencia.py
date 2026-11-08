@@ -12,12 +12,19 @@ for side,sign in [('Left',1),('Right',-1)]:
     old=next(o for o in scene.objects if o.get('R15Chain')==side)
     bpy.data.objects.remove(old,do_unlink=True)
     points=[]; radii=[]
-    control=[Vector((sign*.59,0,2.91)),Vector((sign*.72,0,2.65)),Vector((sign*1.0,0,2.25)),Vector((sign*1.15,0,1.94))]
-    for i in range(33):
-        t=i/32
-        p=(1-t)**3*control[0]+3*(1-t)**2*t*control[1]+3*(1-t)*t*t*control[2]+t**3*control[3]
-        radius=.20-.085*t+.016*math.sin(math.pi*t)
-        points.append(tuple(p)); radii.append(radius)
+    # Separate anatomical landmarks: upper arm, narrow elbow, forearm and wrist.
+    # The elbow sits behind the wrist, creating a relaxed flexion in side view.
+    profile=[(.56,0,2.85,.205),(.76,.025,2.67,.200),
+             (.96,.075,2.42,.132),(1.015,.035,2.32,.146),
+             (1.08,-.06,2.16,.160),(1.15,-.16,1.94,.112)]
+    knots=[Vector((sign*x,y,z,r)) for x,y,z,r in profile]
+    for k in range(len(knots)-1):
+        a,b,c,d=knots[max(0,k-1)],knots[k],knots[k+1],knots[min(k+2,len(knots)-1)]
+        for i in range(8):
+            t=i/8
+            p=.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+(-a+3*b-3*c+d)*t*t*t)
+            points.append(tuple(p[:3])); radii.append(p[3])
+    points.append(tuple(knots[-1][:3])); radii.append(knots[-1][3])
     arm=ns['tube']('Braco_Continuo_'+side,points,radii,ns['skin'],ns['cols']['body'],ns['roots']['body'],24)
     ns['ball']('Braco_Continuo_Ombro_'+side,(sign*.48,0,2.84),(.29,.225,.265),ns['skin'],'body')
 # Convert cloth trims to editable geometry before transforming proportions.
@@ -38,6 +45,7 @@ for obj in scene.objects:
         if hand:
             center=Vector((1.15 if p.x>0 else -1.15,-.015,1.83))
             p=center+(p-center)*1.12
+            p.y-=.16
         p.z=.20+(p.z-.20)*.90 if p.z<1.65 else p.z-.145
         vert.co=inverse@p
     obj.data.update()
