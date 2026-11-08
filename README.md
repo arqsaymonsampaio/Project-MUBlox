@@ -2,6 +2,13 @@
 
 Protótipo Roblox reconstruído a partir dos códigos da conversa, organizado para **Rojo 7.7.1**. Os arquivos desta pasta são a fonte do código; não é necessário colar instaladores na Barra de Comandos.
 
+## Modelagem no Blender
+
+O [gerador da base visual do Guerreiro](art/blender/README.md) cria corpo,
+armadura modular, espada e asas em uma nova cena, preservando a anterior.
+Inclui instruções e uma prévia renderizada. Ainda precisa de adaptação ao R15;
+não substitui automaticamente o personagem atual do jogo.
+
 ## Abrir no Windows
 
 1. Extraia ou clone este repositório em uma pasta nova, por exemplo `Documents\Project-MUBlox`. Preserve qualquer projeto anterior.
