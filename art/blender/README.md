@@ -1,5 +1,7 @@
 # Guerreiro — base visual no Blender
 
+Novo: [estudo de proporções da referência, com arquivo `.blend` pronto](ESTUDO_REFERENCIA.md).
+
 **Para o personagem sem armadura, use o novo [corpo-base](CORPO_BASE.md).**
 Este documento abaixo descreve o estudo anterior do set vermelho.
 
