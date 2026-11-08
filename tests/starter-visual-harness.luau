@@ -5,7 +5,7 @@ V.__unm=function(a) return vec(-a.X,-a.Y,-a.Z) end
 V.__add=function(a,b) return vec(a.X+b.X,a.Y+b.Y,a.Z+b.Z) end
 V.__sub=function(a,b) return vec(a.X-b.X,a.Y-b.Y,a.Z-b.Z) end
 V.__mul=function(a,b) if type(b)=="number" then return vec(a.X*b,a.Y*b,a.Z*b) end return vec(a.X*b.X,a.Y*b.Y,a.Z*b.Z) end
-V.__div=function(a,b) return a*(1/b) end
+V.__div=function(a,b) if type(b)=="number" then return a*(1/b) end return vec(a.X/b.X,a.Y/b.Y,a.Z/b.Z) end
 V.__index=function(a,key)
  if key=="Magnitude" then return math.sqrt(a.X*a.X+a.Y*a.Y+a.Z*a.Z) end
  if key=="Unit" then return a/a.Magnitude end
@@ -116,3 +116,33 @@ visibleParts[1].CFrame=frame(vec(1,0,0),vec(0,1,0),vec(-1,0,0),vec(0,0,1))
 size,offset=fitted(torso)
 assert(size.X==5 and size.Y==2 and size.Z==2 and offset.X==.5)
 print("PASS equipment bounds: legacy fallback, offsets, rotations, hidden clothing and exclusion of other limbs")
+
+-- V3 preserves hand proportions even when the R15 hand bounding box is very short.
+local function limbWithJoints(size,joints)
+ local body={Size=size,FindFirstChild=function(_,name)
+  local point=joints[name]
+  return point and {Position=point,IsA=function(_,k) return k=="Attachment" end} or nil
+ end}
+ return body
+end
+local refs={}
+refs.LeftUpperArm={name="LeftUpperArm",v2=true,v3=true,bindSize=vec(.44,.75,.44),body=limbWithJoints(vec(2,.6,2),{LeftShoulderRigAttachment=vec(0,.3,0),LeftElbowRigAttachment=vec(0,-.28,0)})}
+refs.LeftLowerArm={name="LeftLowerArm",v2=true,v3=true,bindSize=vec(.44,.38,.44),body=limbWithJoints(vec(2,.38,2),{LeftElbowRigAttachment=vec(0,.19,0),LeftWristRigAttachment=vec(0,-.19,0)})}
+refs.LeftHand={name="LeftHand",v2=true,v3=true,bindSize=vec(.34,.52,.24),body=limbWithJoints(vec(2,.12,2),{LeftWristRigAttachment=vec(.02,.06,.01)})}
+local scale,shift=starterScale(refs.LeftUpperArm,refs)
+assert(math.abs(scale.Y-1)<.00001 and math.abs(scale.X-1)<.00001)
+assert((vec(0,.205,0)*scale+shift-vec(0,.3,0)).Magnitude<.00001)
+assert((vec(0,-.375,0)*scale+shift-vec(0,-.28,0)).Magnitude<.00001)
+scale,shift=starterScale(refs.LeftHand,refs)
+assert(math.abs(scale.X-scale.Y)<.00001 and math.abs(scale.Z-scale.Y)<.00001)
+assert((vec(0,.26,0)*scale+shift-vec(.02,.06,.01)).Magnitude<.00001)
+refs.LeftHand.body=limbWithJoints(vec(.3,.3,.3),{})
+scale,shift=starterScale(refs.LeftHand,refs)
+assert((vec(0,.26,0)*scale+shift-vec(0,.15,0)).Magnitude<.00001)
+-- Wear meshes identify layered templates even if the optional format cube was omitted.
+local t3,c3,d3=fixture()
+for name,slots in starterWear do for _,slot in slots do table.insert(d3,part("Wear_"..slot.."_"..name,"MeshPart")) end end
+assert(#validateStarterTemplate(t3,c3)==29)
+table.insert(d3,part("FormatV3","Part")); local e3=validateStarterTemplate(t3,c3)
+assert(e3[1].v3 and e3[1].v2)
+print("PASS V3: joint-based arm length, uniform hands, wrist alignment, attachment fallback and layered detection")

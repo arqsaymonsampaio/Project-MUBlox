@@ -20,9 +20,9 @@ profiles={
 }
 for side,s in [('Left',1),('Right',-1)]:
     for part,center,size in [
-      ('UpperArm',(s*.75,0,2.62),(.44,.44,.62)),
-      ('LowerArm',(s*1.02,0,2.12),(.44,.44,.42)),
-      ('Hand',(s*1.15,0,1.73),(.44,.44,.38)),
+      ('UpperArm',(s*.75,0,2.695),(.44,.44,.75)),
+      ('LowerArm',(s*1.02,0,2.13),(.44,.44,.38)),
+      ('Hand',(s*1.15,0,1.68),(.34,.24,.52)),
       ('UpperLeg',(s*.29,0,1.55),(.52,.55,.58)),
       ('LowerLeg',(s*.32,0,.96),(.48,.50,.60)),
       ('Foot',(s*.32,-.15,.43),(.56,.85,.46)),
@@ -82,7 +82,13 @@ for obj in list(scene.objects):
         f.material_index=materials.index(m)
     slot=obj.parent.get('equipment_slot')
     current_layer={'Hair':'Helmet','StarterShirt':'Armor','StarterGloves':'Gloves','StarterBoots':'Boots','StarterPants':'Pants'}.get(slot,'Body')
-    if slot in {'Face','Hair'} or obj.name.startswith('Cabeca'):
+    if obj.get('R15Part'):
+        put(bm,obj['R15Part'],[])
+    elif obj.get('R15Chain'):
+        side=obj['R15Chain']
+        put(bm,side+'UpperArm',[upper(2.32)])
+        put(bm,side+'LowerArm',[lower(2.32),upper(1.94)])
+    elif slot in {'Face','Hair'} or obj.name.startswith('Cabeca'):
         put(bm,'Head',[])
     elif slot=='StarterShirt':
         if obj.name.startswith(('Cinto','Fivela','Acabamento_Frontal')):
@@ -116,7 +122,7 @@ for obj in list(scene.objects):
 for side,sign in [('Left',1),('Right',-1)]:
     for suffix,position,radii,layer,mat in [
         ('LowerArm',(sign*.91,0,2.32),(.18,.19,.19),'Body',ns['skin']),
-        ('Hand',(sign*1.13,0,1.94),(.155,.15,.14),'Body',ns['skin']),
+        ('Hand',(sign*1.13,0,1.94),(.11,.11,.10),'Body',ns['skin']),
         ('LowerLeg',(sign*.30,0,1.26),(.195,.215,.18),'Body',ns['skin']),
         ('LowerLeg',(sign*.30,0,1.26),(.218,.238,.20),'Pants',ns['pants_mat']),
     ]:
@@ -136,7 +142,7 @@ def arm_center(z):
             return x+(y-x)*t
     return points[-1][1]
 
-export=bpy.data.collections.new('Export_R15_Visual_V2'); scene.collection.children.link(export)
+export=bpy.data.collections.new('Export_R15_Visual_V3'); scene.collection.children.link(export)
 objects=[]
 for (name,layer),parts in buckets.items():
     verts=[]; faces=[]; palette=[]
@@ -173,7 +179,7 @@ for name,(center,size) in profiles.items():
     bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
     for col in list(marker.users_collection): col.objects.unlink(marker)
     export.objects.link(marker); objects.append(marker)
-for name,pos in [('AxisOrigin',(0,0,0)),('AxisUp',(0,0,1)),('AxisFront',(0,-1,0)),('FormatV2',(0,1,0))]:
+for name,pos in [('AxisOrigin',(0,0,0)),('AxisUp',(0,0,1)),('AxisFront',(0,-1,0)),('FormatV2',(0,1,0)),('FormatV3',(0,1,.2))]:
     bpy.ops.mesh.primitive_cube_add(size=.05,location=pos); obj=bpy.context.object; obj.name=name
     for col in list(obj.users_collection): col.objects.unlink(obj)
     export.objects.link(obj); objects.append(obj)
@@ -183,6 +189,6 @@ bpy.context.view_layer.objects.active=objects[0]
 bpy.ops.export_scene.fbx(filepath=str(out/'Guerreiro_Visual_R15.fbx'),use_selection=True,
     object_types={'MESH'},use_mesh_modifiers=True,add_leaf_bones=False,bake_anim=False,
     axis_forward='-Z',axis_up='Y',path_mode='COPY',embed_textures=True)
-print('PASS V2 export:',len(objects),'objects; independent clothing and binding markers')
+print('PASS V3 export:',len(objects),'objects; independent clothing and binding markers')
 for obj in objects:
     if obj.name.startswith(('Visual_','Wear_')): print(obj.name,len(obj.data.polygons),'triangles')

@@ -1,4 +1,4 @@
-# Guerreiro inicial — atualização V2
+# Guerreiro inicial — atualização V3
 
 Este pacote instala um **visual experimental R15** do Guerreiro sobre o personagem
 que já movimenta no MUBlox. A malha vem do protótipo Blender, com roupa inicial,
@@ -7,6 +7,17 @@ Studio para avaliar encaixes, juntas, escala e cores. Não é um avatar pronto p
 publicar no catálogo Roblox.
 
 ## O que mudou nesta versão
+
+- Ombro inteiro acompanha o braço: não há mais uma metade cortada presa ao tórax.
+- Palma menor, polegar e quatro dedos definidos; luva inicial em forma de tecido,
+  substituindo a esfera que cobria a mão.
+- Comprimento dos braços calculado pelas articulações de ombro/cotovelo/punho
+  quando disponíveis, com escala de reserva para rigs sem esses attachments.
+- Mãos preservam proporções com escala uniforme e são alinhadas ao punho.
+- Ao carregar, a Saída do Studio informa `MUBlox visual: V3, 29 malhas`.
+  Se não aparecer V3, confira a sincronização do script e o modelo instalado.
+
+Mantido da V2:
 
 - Cinto e fivela inteiros na cintura, sem corte entre dois segmentos.
 - 15 regiões do corpo e 14 malhas de roupa/cabelo independentes.
@@ -20,7 +31,7 @@ publicar no catálogo Roblox.
 ## Instalação
 
 1. Salve seu lugar atual e pare o **Play**. Se já importou a versão anterior,
-   renomeie o modelo antigo em ServerStorage para `MUBloxWarriorVisual_Antigo`.
+   renomeie o modelo antigo em ServerStorage para `MUBloxWarriorVisual_Antigo_V2`.
    Mantenha-o como cópia de segurança até conferir o resultado.
 2. Substitua `src\server\MUBlox.server.luau` pelo arquivo deste pacote na pasta
    que o Rojo está servindo. Não cole o código na Barra de Comandos. O script
@@ -37,7 +48,7 @@ publicar no catálogo Roblox.
    **MUBloxWarriorVisual** e arraste-o de Workspace para **ServerStorage**.
    Leve o modelo completo: 15 malhas `Visual_*`, 14 malhas `Wear_*`,
    15 blocos `Bind_*` e os marcadores `AxisOrigin`, `AxisUp`, `AxisFront`,
-   `FormatV2` (48 objetos). Os blocos são referências;
+   `FormatV2`, `FormatV3` (49 objetos). Os blocos são referências;
    não fazem parte do visual que o script coloca no jogador. Não os apague.
 6. Com o Rojo conectado, inicie **Play** e escolha **Guerreiro**.
    A roupa inicial será aplicada e as peças do set começarão desequipadas
@@ -75,7 +86,7 @@ sendo os do jogo. O corpo original e seus acessórios ficam invisíveis quando
 há um modelo completo válido. Os marcadores permitem compensar a conversão de
 eixos e unidades do FBX. A aparência é reconstruída após carregar o avatar.
 
-As roupas e o corpo estão separados no Blender e no FBX V2. As malhas são
+As roupas e o corpo estão separados no Blender e no FBX V3. As malhas são
 agrupadas por região R15 e por equipamento para acompanhar o movimento;
 não se trata de uma malha orgânica com pesos de deformação. Podem aparecer
 emendas nos joelhos/cotovelos, especialmente com poses fortes. As proporções
@@ -95,11 +106,14 @@ não é uma promessa de acabamento idêntico no jogo.
   segmentos e menos de 10 mil triângulos em cada malha.
 - Validação automatizada do contrato de importação: modelos incompletos,
   nomes duplicados, rig incompatível e eixos inválidos são rejeitados.
-- Testes de camadas V2 obrigatórias, equipar/retirar cada slot, set completo,
+- Teste de dedos separados após a exportação/reimportação real do FBX.
+- Testes de comprimento por articulação, escala uniforme das mãos, alinhamento
+  ao punho e identificação das camadas mesmo sem o marcador V2.
+- Testes de camadas obrigatórias, equipar/retirar cada slot, set completo,
   restauração de transparência e independência das asas.
 - Testes existentes de combate e IA, compilação Luau e build Rojo.
 - A integração da V1 foi confirmada pelo usuário no Studio. Os ajustes da
-  **V2 ainda precisam de conferência visual no Studio**, especialmente nas juntas.
+  **V3 ainda precisam de conferência visual no Studio**, especialmente nas juntas.
 
 Fontes: `art/blender/criar_corpo_base.py` e
 `art/blender/exportar_corpo_roblox.py` no repositório.

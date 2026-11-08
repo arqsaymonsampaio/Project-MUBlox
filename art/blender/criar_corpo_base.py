@@ -131,14 +131,14 @@ def curve(name, points, radius, mat, col, parent=None):
     return obj
 
 
-def merge_skin(objects,name,col,parent):
+def merge_skin(objects,name,col,parent,voxel=.035,smooth_iterations=5):
     bpy.ops.object.select_all(action='DESELECT')
     for obj in objects: obj.select_set(True)
     bpy.context.view_layer.objects.active=objects[0]
     bpy.ops.object.join(); obj=bpy.context.object; obj.name=name
-    remesh=obj.modifiers.new('Unir volumes organicos','REMESH'); remesh.mode='VOXEL'; remesh.voxel_size=.035
+    remesh=obj.modifiers.new('Unir volumes organicos','REMESH'); remesh.mode='VOXEL'; remesh.voxel_size=voxel
     bpy.ops.object.modifier_apply(modifier=remesh.name)
-    smooth=obj.modifiers.new('Suavizar anatomia','SMOOTH'); smooth.factor=1.2; smooth.iterations=5
+    smooth=obj.modifiers.new('Suavizar anatomia','SMOOTH'); smooth.factor=1.2; smooth.iterations=smooth_iterations
     bpy.ops.object.modifier_apply(modifier=smooth.name)
     for p in obj.data.polygons: p.use_smooth=True
     return obj
@@ -165,15 +165,30 @@ roots={key:root(name,cols[key],name) for key,name in [('body','Body'),('face','F
 def ball(name,pos,scale,mat,key): return sphere(name,pos,scale,mat,cols[key],roots.get(key))
 def line(name,points,radius,mat,key): return curve(name,points,radius,mat,cols[key],roots.get(key))
 
-# Anatomical blockout, with actual skin under removable clothing.
+# Torso/legs are distinct from arm chains: shoulder volumes must not be cut
+# vertically and then attached partly to the torso and partly to the upper arm.
 parts=[ball('Torso',(0,0,2.50),(.49,.265,.55),skin,'body'),ball('Quadril',(0,0,1.98),(.46,.29,.35),skin,'body'),ball('Pescoco',(0,0,3.02),(.20,.21,.32),skin,'body')]
 for s in [-1,1]:
-    parts += [ball('Ombro',(s*.59,0,2.83),(.23,.23,.27),skin,'body'),ball('Braco',(s*.76,0,2.57),(.18,.19,.32),skin,'body'),ball('Cotovelo',(s*.91,0,2.31),(.18,.20,.19),skin,'body'),ball('Antebraco',(s*1.02,-.005,2.12),(.17,.18,.29),skin,'body'),ball('Palma',(s*1.15,-.025,1.81),(.21,.13,.24),skin,'body')]
-    for i in range(4):
-        parts.append(ball('Dedo',(s*(1.01+i*.085),-.04,1.60+abs(i-1.5)*.025),(.049,.075,.145),skin,'body'))
-    parts.append(ball('Polegar',(s*.94,-.04,1.79),(.09,.11,.15),skin,'body'))
     parts += [ball('Coxa',(s*.28,0,1.60),(.25,.26,.43),skin,'body'),ball('Joelho',(s*.30,0,1.22),(.20,.22,.20),skin,'body'),ball('Canela',(s*.32,0,.91),(.19,.20,.35),skin,'body'),ball('Pe',(s*.32,-.12,.42),(.23,.36,.17),skin,'body')]
 merge_skin(parts,'Corpo_Organico',cols['body'],roots['body'])
+for side,s in [('Left',1),('Right',-1)]:
+    arm_parts=[ball('Ombro',(s*.60,0,2.82),(.22,.22,.23),skin,'body'),
+        ball('Braco',(s*.76,0,2.59),(.175,.18,.30),skin,'body'),
+        ball('Cotovelo',(s*.91,0,2.32),(.16,.17,.18),skin,'body'),
+        ball('Antebraco',(s*1.02,0,2.13),(.16,.16,.27),skin,'body')]
+    arm=merge_skin(arm_parts,'Braco_Base_'+side,cols['body'],roots['body'],voxel=.022)
+    arm['R15Chain']=side
+    # Palm, four separate fingertips and an opposing thumb. Finer voxel size
+    # keeps the finger gaps instead of melting them into the previous mitten.
+    hand_parts=[ball('Palma',(s*1.15,-.015,1.80),(.15,.09,.14),skin,'body'),
+        ball('Pulso',(s*1.15,0,1.93),(.105,.105,.09),skin,'body')]
+    lengths=[.135,.16,.15,.115]
+    for i,length in enumerate(lengths):
+        hand_parts.append(ball('Dedo_'+str(i),(s*(1.15+(i-1.5)*.077),-.025,1.65),(.031,.052,length),skin,'body'))
+    hand_parts += [ball('Base_Polegar',(s*.995,-.025,1.80),(.065,.07,.08),skin,'body'),
+        ball('Polegar',(s*.96,-.05,1.71),(.047,.065,.115),skin,'body')]
+    hand=merge_skin(hand_parts,'Mao_Base_'+side,cols['body'],roots['body'],voxel=.009,smooth_iterations=3)
+    hand['R15Part']=side+'Hand'
 # Head is deliberately large; ears and nose merge into the face.
 parts=[ball('Cranio',(0,0,3.84),(.72,.57,.79),skin,'body'),ball('Mandibula',(0,-.045,3.47),(.56,.47,.36),skin,'body'),ball('Nariz',(0,-.555,3.66),(.13,.13,.11),skin,'body')]
 for s in [-1,1]: parts.append(ball('Orelha',(s*.71,.015,3.66),(.15,.13,.24),skin,'body'))
@@ -247,8 +262,9 @@ for s in [-1,1]:
     ball('Bota_Pe',(s*.32,-.16,.39),(.27,.42,.22),leather,'boots')
     ball('Sola',(s*.32,-.17,.25),(.28,.425,.075),sole,'boots')
     ball('Dobra_Bota',(s*.32,0,1.10),(.27,.28,.12),gold,'boots')
-    ball('Luva',(s*1.15,-.015,1.88),(.235,.20,.17),leather,'gloves')
-    line('Costura_Luva',[(s*1.08,-.139,1.97),(s*1.16,-.142,1.89),(s*1.23,-.12,1.80)],.009,gold,'gloves')
+    glove=garment('Luva',[(1.72,.155,.105),(1.83,.16,.11),(1.94,.118,.118)],leather,'gloves')
+    glove.location.x=s*1.15; glove.location.y=-.015
+    line('Costura_Luva',[(s*1.07,-.12,1.91),(s*1.08,-.13,1.82),(s*1.08,-.12,1.74)],.006,gold,'gloves')
 
 # Rendering stage, separate from the character.
 stage=cols['stage']

@@ -116,6 +116,8 @@ local function validateStarterTemplate(template,character)
    found[obj.Name]=obj
   end
  end
+ local layered=found.FormatV2~=nil or found.FormatV3~=nil
+ for name in found do if string.sub(name,1,5)=="Wear_" then layered=true end end
  for _, axis in {"AxisOrigin","AxisUp","AxisFront"} do
   if not found[axis] then return nil,"marcador ausente: "..axis end
  end
@@ -135,7 +137,7 @@ local function validateStarterTemplate(template,character)
   local bindSize=dimensionsInFrame(bind.Size,frame.Rotation:ToObjectSpace(bind.CFrame.Rotation))
   if math.min(bindSize.X,bindSize.Y,bindSize.Z)<.001 then return nil,"marcador sem tamanho: "..name end
   local visuals={{part=visual}}
-  if found.FormatV2 then
+  if layered then
    for _, slot in starterWear[name] or {} do
     local wear=found["Wear_"..slot.."_"..name]
     if not wear or not wear:IsA("MeshPart") then return nil,"camada V2 ausente: "..slot.."_"..name end
@@ -147,10 +149,51 @@ local function validateStarterTemplate(template,character)
    for _, axis in {rotation.RightVector,rotation.UpVector,rotation.LookVector} do
     if math.max(math.abs(axis.X),math.abs(axis.Y),math.abs(axis.Z))<.999 then return nil,"rotacao individual invalida: "..name end
    end
-   table.insert(entries,{name=name,body=body,visual=layer.part,frame=frame,bindSize=bindSize,slot=layer.slot,v2=found.FormatV2~=nil})
+   table.insert(entries,{name=name,body=body,visual=layer.part,frame=frame,bindSize=bindSize,slot=layer.slot,v2=layered,v3=found.FormatV3~=nil})
   end
  end
  return entries
+end
+-- V3 arms: fit length to joint positions, not arbitrary MeshPart bounding boxes.
+local function starterScale(entry,references)
+ local body=entry.body
+ local ratio=body.Size/entry.bindSize
+ if not entry.v2 then return ratio,Vector3.zero end
+ local side=string.sub(entry.name,1,4)=="Left" and "Left" or "Right"
+ local isArm=string.find(entry.name,"Arm") or string.find(entry.name,"Hand")
+ local referenceName=isArm and side.."UpperArm" or (string.find(entry.name,"Leg") or string.find(entry.name,"Foot")) and side.."UpperLeg"
+ local reference=referenceName and references[referenceName]
+ if not reference then return ratio,Vector3.zero end
+ if entry.v3 and isArm then
+  local function attachment(part,joint)
+   local value=part:FindFirstChild(side..joint.."RigAttachment")
+   return value and value:IsA("Attachment") and value or nil
+  end
+  local function axial(name,topJoint,bottomJoint,spanFraction)
+   local ref=references[name]
+   if not ref then return ratio.Y end
+   local top,bottom=attachment(ref.body,topJoint),attachment(ref.body,bottomJoint)
+   if top and bottom then
+    local span=math.abs(top.Position.Y-bottom.Position.Y)
+    if span>.001 then return span/(ref.bindSize.Y*spanFraction) end
+   end
+   return ref.body.Size.Y/ref.bindSize.Y
+  end
+  local upper=axial(side.."UpperArm","Shoulder","Elbow",.58/.75)
+  local lower=axial(side.."LowerArm","Elbow","Wrist",1)
+  local width=math.min(upper,lower)
+  local joint,pivotFraction,height
+  if string.find(entry.name,"UpperArm") then joint="Shoulder"; pivotFraction=.205/.75; height=upper
+  elseif string.find(entry.name,"LowerArm") then joint="Elbow"; pivotFraction=.5; height=lower
+  else joint="Wrist"; pivotFraction=.5; height=width end
+  ratio=Vector3.new(width,height,width)
+  local target=attachment(body,joint)
+  local targetPoint=target and target.Position or Vector3.new(0,body.Size.Y*.5,0)
+  local sourcePoint=Vector3.new(0,entry.bindSize.Y*pivotFraction,0)
+  return ratio,targetPoint-sourcePoint*ratio
+ end
+ local shared=reference.body.Size/reference.bindSize
+ return Vector3.new(shared.X,ratio.Y,shared.Z),Vector3.zero
 end
 local function applyStarterVisual(player,character,rebuild)
  if player.Character~=character then return false end
@@ -165,21 +208,12 @@ local function applyStarterVisual(player,character,rebuild)
   local references={}
   for _, entry in entries do references[entry.name]=entry end
   visualModel:SetAttribute("FormatV2",entries[1].v2)
+  local revision=entries[1].v3 and 3 or entries[1].v2 and 2 or 1
+  visualModel:SetAttribute("VisualRevision",revision)
   -- Prepare every mesh before hiding the original avatar.
   for _, entry in entries do
    local body=entry.body
-   local ratio=body.Size/entry.bindSize
-   if entry.v2 then
-    local side=string.sub(entry.name,1,4)=="Left" and "Left" or "Right"
-    local referenceName
-    if string.find(entry.name,"Arm") or string.find(entry.name,"Hand") then referenceName=side.."UpperArm"
-    elseif string.find(entry.name,"Leg") or string.find(entry.name,"Foot") then referenceName=side.."UpperLeg" end
-    local reference=referenceName and references[referenceName]
-    if reference then
-     local shared=reference.body.Size/reference.bindSize
-     ratio=Vector3.new(shared.X,ratio.Y,shared.Z)
-    end
-   end
+   local ratio,pivotOffset=starterScale(entry,references)
    local relative=entry.frame:ToObjectSpace(entry.visual.CFrame)
    local copy=entry.visual:Clone()
    for _, child in copy:GetDescendants() do
@@ -187,7 +221,7 @@ local function applyStarterVisual(player,character,rebuild)
    end
    local localScale=dimensionsInFrame(ratio,relative.Rotation:Inverse())
    copy.Size=entry.visual.Size*localScale
-   copy.CFrame=body.CFrame*CFrame.new(relative.Position*ratio)*relative.Rotation
+   copy.CFrame=body.CFrame*CFrame.new(relative.Position*ratio+pivotOffset)*relative.Rotation
    copy.Anchored=false; copy.Massless=true; copy.CanCollide=false; copy.CanTouch=false; copy.CanQuery=false
    copy:SetAttribute("BodyPart",entry.name)
    copy:SetAttribute("HideSlot",entry.slot)
@@ -196,6 +230,7 @@ local function applyStarterVisual(player,character,rebuild)
    local weld=Instance.new("WeldConstraint"); weld.Part0=body; weld.Part1=copy; weld.Parent=copy
   end
   visualModel.Parent=character
+  print(string.format("MUBlox visual: V%d, %d malhas",revision,#entries))
   if existing then existing:Destroy() end
  end
  for _, name in starterParts do
