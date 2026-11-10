@@ -7,8 +7,18 @@
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
       "$ignoreUnknownInstances": true,
+      "SkinnedWarrior": {
+        "$path": "src/shared/SkinnedWarrior.luau"
+      },
       "MUBloxAction": {
         "$className": "RemoteEvent"
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "$ignoreUnknownInstances": true,
+      "MUBloxWarriorSkinned": {
+        "$path": "art/roblox/MUBloxWarriorSkinned.rbxmx"
       }
     },
     "ServerScriptService": {

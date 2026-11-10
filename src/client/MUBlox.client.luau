@@ -1,4 +1,4 @@
--- MUBlox AnimationConstraint V1
+-- MUBlox AnimationConstraint V1 + visual articulado V5
 local Players=game:GetService("Players")
 local UIS=game:GetService("UserInputService")
 local CAS=game:GetService("ContextActionService")
@@ -7,6 +7,7 @@ local TweenService=game:GetService("TweenService")
 local Debris=game:GetService("Debris")
 local player=Players.LocalPlayer
 local R=game:GetService("ReplicatedStorage"):WaitForChild("MUBloxAction")
+local SkinnedWarrior=require(game:GetService("ReplicatedStorage"):WaitForChild("SkinnedWarrior"))
 local mouse=player:GetMouse()
 local gold=Color3.fromRGB(205,170,85)
 local slots={"Helmet","Armor","Gloves","Pants","Boots","Sword","Wings"}
@@ -464,5 +465,22 @@ Run.RenderStepped:Connect(function()
  elseif remaining>0 then skill.Text=string.format("%s\n%.1fs",title,remaining)
  elseif (player:GetAttribute("Mana") or 0)<cost then skill.Text=title.."\nSem mana"
  else skill.Text=title.."\nDireito" end
+end)
+
+-- After physics and the existing pose controller, mirror each visible player's R15 pose.
+-- Skinning is local rendering; server still owns health, mana, hits and equipment.
+local skinStates={}
+Players.PlayerRemoving:Connect(function(p) skinStates[p]=nil end)
+Run:BindToRenderStep("MUBloxSkinnedV5",Enum.RenderPriority.Character.Value+1,function()
+ for _, owner in Players:GetPlayers() do
+  local character=owner.Character
+  local visual=character and character:FindFirstChild("MUBloxStarterVisual")
+  if not visual or not visual:GetAttribute("SkinnedV5") then skinStates[owner]=nil; continue end
+  local state=skinStates[owner]
+  if not state or state.visual~=visual then
+   state=SkinnedWarrior.clientState(character,visual); skinStates[owner]=state
+  end
+  if state then SkinnedWarrior.update(state) end
+ end
 end)
 

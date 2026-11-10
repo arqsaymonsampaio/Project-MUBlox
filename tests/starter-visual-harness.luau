@@ -110,7 +110,7 @@ local function visualPiece(name,size,cf)
   GetAttribute=function(_,key) return key=="BodyPart" and name or nil end}
 end
 local visibleParts={visualPiece("UpperTorso",vec(2,4,2),frame(vec(1,0,0))),visualPiece("UpperTorso",vec(2,2,2),frame(vec(-1,0,0))),visualPiece("Head",vec(20,20,20),frame(vec(100,0,0)))}
-starter={GetAttribute=function() return true end,GetChildren=function() return visibleParts end}
+starter={GetAttribute=function(_,key) return key=="FormatV2" or nil end,GetChildren=function() return visibleParts end}
 size,offset=fitted(torso)
 assert(size.X==4 and size.Y==4 and size.Z==2 and offset.Magnitude==0)
 visibleParts[1].CFrame=frame(vec(1,0,0),vec(0,1,0),vec(-1,0,0),vec(0,0,1))

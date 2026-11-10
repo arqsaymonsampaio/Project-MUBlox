@@ -1,6 +1,7 @@
--- MUBLOX_VISUAL_V4: encaixe dos bracos pelos eixos reais das articulacoes.
+-- MUBLOX_VISUAL_V5: guerreiro articulado com controle R15 e encaixes nos ossos.
 local Players = game:GetService("Players")
 local R = game:GetService("ReplicatedStorage"):WaitForChild("MUBloxAction")
+local SkinnedWarrior = require(game:GetService("ReplicatedStorage"):WaitForChild("SkinnedWarrior"))
 local classes = {Guerreiro={150,60,Color3.fromRGB(165,40,28)}, Mago={90,150,Color3.fromRGB(35,65,150)}, Elfa={110,100,Color3.fromRGB(45,135,85)}}
 local slots = {"Helmet","Armor","Gloves","Pants","Boots","Sword","Wings"}
 local allowed = {}; for _, slot in slots do allowed[slot]=true end
@@ -207,7 +208,17 @@ local function applyStarterVisual(player,character,rebuild)
  if player.Character~=character then return false end
  if player:GetAttribute("Class")~="Guerreiro" then return false end
  local existing=character:FindFirstChild("MUBloxStarterVisual")
- if not existing or rebuild then
+ local skinnedTemplate=game:GetService("ServerStorage"):FindFirstChild("MUBloxWarriorSkinned")
+ local skinnedReady=existing and existing:GetAttribute("SkinnedV5") and not rebuild
+ if skinnedTemplate and not skinnedReady then
+  local visual,reason=SkinnedWarrior.mount(skinnedTemplate,character)
+  if visual then
+   if existing then existing:Destroy() end
+   existing=visual; skinnedReady=true
+   print("MUBlox visual: V5 articulado, 15 ossos e 7 malhas")
+  else warn("MUBlox V5: "..tostring(reason).."; mantendo visual anterior") end
+ end
+ if not skinnedReady and (not existing or rebuild) then
   local template=game:GetService("ServerStorage"):FindFirstChild("MUBloxWarriorVisual")
   if not template then return false end -- Existing game remains usable without imported assets.
   local entries,reason=validateStarterTemplate(template,character)
@@ -275,6 +286,7 @@ local function refreshEquipment(player)
  local starter=c:FindFirstChild("MUBloxStarterVisual")
  syncStarterVisibility(player,starter)
  local function fitted(body)
+  if starter and starter:GetAttribute("SkinnedV5") then return body.Size,Vector3.zero,CFrame.identity end
   if not starter or not starter:GetAttribute("FormatV2") then return body.Size,Vector3.zero,CFrame.identity end
   local rotation=CFrame.identity
   for _, visual in starter:GetChildren() do
@@ -299,7 +311,7 @@ local function refreshEquipment(player)
   if not found then return body.Size,Vector3.zero,CFrame.identity end
   return high-low,(high+low)*.5,rotation
  end
- local function limb(a,b) return c:FindFirstChild(a) or c:FindFirstChild(b) end
+ local function limb(a,b) return SkinnedWarrior.body(c,a) or SkinnedWarrior.body(c,b) end
  local torso=limb("UpperTorso","Torso")
  local function piece(name,body,size,offset,color,shape)
   if not body then return end
@@ -307,7 +319,7 @@ local function refreshEquipment(player)
   p.Anchored=false; p.Massless=true; p.CanCollide=false; p.CanTouch=false; p.CanQuery=false; p.Shape=shape or Enum.PartType.Ball
   local w=Instance.new("WeldConstraint"); w.Part0=body; w.Part1=p; w.Parent=p; return p
  end
- local head=c:FindFirstChild("Head")
+ local head=SkinnedWarrior.body(c,"Head")
  if player:GetAttribute("EquippedHelmet") and head then
   if starter and starter:GetAttribute("FormatV2") then
    local size,offset=fitted(head)
@@ -324,7 +336,7 @@ local function refreshEquipment(player)
   piece("Emblema",torso,Vector3.new(.8,.8,.18),CFrame.new(offset+Vector3.new(0,0,-size.Z*.66))*CFrame.Angles(0,0,math.rad(45)),gold,Enum.PartType.Block)
  end
  if starter and starter:GetAttribute("FormatV2") then
-  local pelvis=c:FindFirstChild("LowerTorso")
+  local pelvis=SkinnedWarrior.body(c,"LowerTorso")
   if pelvis and (player:GetAttribute("EquippedArmor") or player:GetAttribute("EquippedPants")) then
    local size,offset=fitted(pelvis)
    piece("CinturaSet",pelvis,size*Vector3.new(1.12,1.05,1.15),CFrame.new(offset))
@@ -351,7 +363,7 @@ local function refreshEquipment(player)
    end
   end
   if starter and starter:GetAttribute("FormatV2") and player:GetAttribute("EquippedBoots") then
-   local shin=c:FindFirstChild(side.."LowerLeg")
+   local shin=SkinnedWarrior.body(c,side.."LowerLeg")
    if shin then
     local size,offset=fitted(shin)
     piece("GrevaSet",shin,size*Vector3.new(1.12,1.04,1.15),CFrame.new(offset))
@@ -429,7 +441,7 @@ local function refreshEquipment(player)
  local backpack=player:FindFirstChildOfClass("Backpack"); if not backpack then return end
  local tool=c:FindFirstChild("MUBloxWeapon") or backpack:FindFirstChild("MUBloxWeapon")
  if not player:GetAttribute("EquippedSword") then if tool then tool:Destroy() end; return end
- if tool then if tool.Parent~=c then h:EquipTool(tool) end; return end
+ if tool then if tool.Parent~=c then h:EquipTool(tool) end; SkinnedWarrior.grip(c); return end
  local className=player:GetAttribute("Class")
  tool=Instance.new("Tool"); tool.Name="MUBloxWeapon"; tool.CanBeDropped=false
  tool:SetAttribute("WeaponClass",className)
@@ -462,7 +474,7 @@ local function refreshEquipment(player)
   weaponPart("Corda",Vector3.new(.035,4,.035),CFrame.new(.65,0,0),Color3.fromRGB(210,235,205))
   tip.Position=Vector3.new(.65,0,-.5)
  end
- tool.Parent=backpack; h:EquipTool(tool)
+ tool.Parent=backpack; h:EquipTool(tool); SkinnedWarrior.grip(c)
 end
 local function applyClass(player,c)
  local h=c:WaitForChild("Humanoid"); if player.Character~=c then return end
@@ -474,7 +486,12 @@ end
 local function setup(player)
  for key,value in {Level=1,Experience=0,Mana=0,MaxMana=0,SpinReadyAt=0} do player:SetAttribute(key,value) end
  for _, slot in slots do player:SetAttribute("Equipped"..slot,slot~="Wings") end
- player.CharacterAdded:Connect(function(c) applyClass(player,c) end)
+ player.CharacterAdded:Connect(function(c)
+  c.DescendantAdded:Connect(function(obj)
+   if obj.Name=="RightGrip" and obj:IsA("Motor6D") then task.defer(SkinnedWarrior.grip,c) end
+  end)
+  applyClass(player,c)
+ end)
  player.CharacterAppearanceLoaded:Connect(function(c)
   applyStarterVisual(player,c,true); refreshEquipment(player)
  end)
